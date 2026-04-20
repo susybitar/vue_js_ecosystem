@@ -1,13 +1,19 @@
-/**
- * @file .dockerignore
- * @description Exclusión de archivos y directorios para el contexto de Docker.
- * Evita la inclusión de dependencias locales y archivos de configuración sensibles.
- */
-
+# Dependencias locales (Docker debe instalar las suyas)
 node_modules
+npm-debug.log
+
+# Archivos de compilación locales
 dist
+
+# Control de versiones
 .git
-.dockerignore
+.gitignore
+
+# Archivos de configuración de Docker
 Dockerfile
+.dockerignore
+
+# Otros archivos innecesarios
 .env
-.vscode
+.DS_Store
+README.md
