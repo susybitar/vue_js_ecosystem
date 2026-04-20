@@ -1,57 +1,70 @@
-# MusicSpace · Gestor Musical
+# Vue.js Ecosystem: SPA Development & API Integration
 
-Aplicación Vue 3 para gestionar una biblioteca personal de artistas y álbumes,
-con búsqueda y tendencias en vivo desde la API pública de Deezer.
-
-Entrega del **Ejercicio 1** del curso Vue.js del Programa de Formación de
-Becarios (FutureSpace).
+Este repositorio centraliza mi progresión técnica en el ecosistema Vue.js, desde
+la construcción de Single Page Applications reactivas hasta la integración con
+APIs REST externas y la contenedorización de aplicaciones frontend.
 
 ---
 
-## Stack
+## Módulos del Repositorio
 
-| Requisito PDF | Versión instalada | Nota |
-|---|---|---|
-| Vue.js 3 | `vue 3.5.32` | ✅ |
-| Vuetify 3 | `vuetify 4.0.5` | Versión superior, compatible con Vue 3 |
-| Vue Router 4 | `vue-router 5.0.4` | Versión superior, compatible con Vue 3 |
-| Pinia | `pinia 3.0.4` | ✅ |
+### Gestor Musical — MusicSpace
 
-Adicional: `axios` para las llamadas HTTP y `@mdi/font` para iconografía.
-Empaquetador: **Vite 8**.
+Aplicación completa de gestión musical construida sobre Vue 3, Vuetify y
+Pinia, con consumo en vivo de la API pública de Deezer, autenticación
+multi-paso y persistencia local. Cubre los dos ejercicios del curso en un
+único producto cohesionado.
+
+* **Destacado:** Flujo de **UI optimista** al añadir elementos desde la
+  sección Explorar — la biblioteca se actualiza al instante mientras los
+  metadatos (género del artista, año del álbum) se enriquecen en segundo
+  plano con `Promise.race` y timeout a 3 s
+  ([useLibraryActions.js](src/composables/useLibraryActions.js)).
+* **Arquitectura de Estado Centralizado:** Stores Pinia con Composition API
+  y persistencia en `localStorage` para mantener la biblioteca entre
+  sesiones. Separación clara de stores: `music` (biblioteca + API),
+  `auth` (sesión) y `ui` (snackbars globales).
+* **API Centralizada en Actions de Pinia:** Todas las llamadas `axios` a
+  Deezer viven dentro del store `music.js` (`searchDeezer`, `fetchTrending`),
+  siguiendo el patrón recomendado por Pinia para separar la capa de datos
+  de las vistas.
+* **CRUD Local Completo:** Gestión de artistas y álbumes con diálogos
+  reutilizables ([ArtistDialog](src/components/artists/ArtistDialog.vue),
+  [AlbumDialog](src/components/albums/AlbumDialog.vue)), con detección de
+  duplicados case-insensitive y desplegable de artistas vinculados.
+* **Consumo de API con `v-card`:** Listado dinámico de artistas, álbumes y
+  canciones en tendencia desde Deezer, pintado en componentes Vuetify
+  ([ExploreCard](src/components/explore/ExploreCard.vue)).
+* **Validación y Seguridad UX:** Reglas de formulario con Vuetify +
+  composable centralizado
+  ([useAuthValidators](src/composables/useAuthValidators.js)), autenticación
+  sin enumeración de usuarios (alineado con OWASP ASVS v4), y feedback
+  visual inline en cada paso del registro.
+* **Componentes Reutilizables:** Tarjetas (`ArtistCard`, `AlbumCard`,
+  `ExploreCard`), barras (`ExploreSearchBar`), layout
+  (`TheNavigationDock`, `TheFooter`), diálogos y steps de registro
+  separados por responsabilidad.
+* **Containerización:** [Dockerfile](Dockerfile) multi-etapa (Node para
+  build + Nginx para servido) y `.dockerignore` configurado para entorno
+  de producción ligero.
 
 ---
 
-## Cumplimiento de requisitos
+## Stack Tecnológico
 
-### Ejercicio 1 — CRUD local con Pinia
-- **Artistas** (`/profile/artists`): listar, crear, editar y borrar
-  ([ArtistsView.vue](src/views/ArtistsView.vue)).
-- **Álbumes** (`/profile/albums`): listar, crear, editar y borrar, con
-  desplegable de artistas guardados ([AlbumDialog.vue](src/components/albums/AlbumDialog.vue)).
-- Persistencia en memoria vía **Pinia** ([music.js](src/stores/music.js)) con
-  sincronización a `localStorage` para no perder el estado entre recargas.
-
-### Ejercicio 2 — Consumo de API con Axios y v-card
-- **Explorar** (`/profile/explore`): consulta la API pública de Deezer
-  mediante `axios` centralizado en acciones de Pinia (`searchDeezer`,
-  `fetchTrending`), pintando los resultados en `v-card`
-  ([ExploreCard.vue](src/components/explore/ExploreCard.vue)).
-- La llamada HTTP se dispara por interacción del usuario (botón/Enter de
-  búsqueda) y en la carga inicial de tendencias.
-
-### Opcionales implementados
-- ✅ **Llamadas a la API centralizadas** en acciones de Pinia
-  ([music.js](src/stores/music.js)) — todos los `axios.get` viven en el store.
-- ✅ **Componentes reutilizables**: `ArtistCard`, `AlbumCard`, `ExploreCard`,
-  `ExploreSearchBar`, `TheNavigationDock`, `TheFooter`, diálogos
-  `ArtistDialog` y `AlbumDialog`.
-- ✅ **Dockerización**: imagen multi-stage (build con Node + servido con
-  Nginx). Ver sección Docker.
+* **Lenguaje:** JavaScript (ES2022+)
+* **Framework:** Vue 3 (Composition API, `<script setup>`)
+* **UI Library:** Vuetify
+* **Routing:** Vue Router (`createWebHistory`, lazy loading de vistas)
+* **State Management:** Pinia (setup stores con refs + computed)
+* **HTTP Client:** Axios (centralizado en actions de Pinia)
+* **Build Tool:** Vite
+* **Containerización:** Docker multi-stage + Nginx
+* **APIs Externas:** Deezer (pública, sin auth) vía proxy de Vite para evitar CORS
 
 ---
 
-## Puesta en marcha
+## Puesta en Marcha
 
 Requiere **Node 20.19+** o **Node 22.12+**.
 
@@ -62,15 +75,7 @@ npm run build     # genera /dist
 npm run preview   # sirve /dist en local
 ```
 
-La primera llamada a Deezer pasa por un proxy de Vite definido en
-[vite.config.js](vite.config.js) para evitar CORS en desarrollo
-(`/api/deezer` → `https://api.deezer.com`).
-
----
-
-## Docker
-
-Build multi-etapa: Node compila, Nginx sirve los estáticos.
+### Docker
 
 ```bash
 docker build -t musicspace .
@@ -78,12 +83,9 @@ docker run --rm -p 8080:80 musicspace
 # http://localhost:8080
 ```
 
-El `.dockerignore` excluye `node_modules`, `dist`, `.git` y configuración de
-editor del contexto de build.
-
 ---
 
-## Arquitectura
+## Arquitectura del Módulo
 
 ```
 src/
@@ -93,41 +95,15 @@ src/
 │   ├── artists/    ArtistCard, ArtistDialog
 │   ├── albums/     AlbumCard, AlbumDialog
 │   ├── explore/    ExploreCard, ExploreSearchBar
-│   ├── auth/       StepEmail, StepPassword, StepProfile (registro en 3 pasos)
+│   ├── auth/       StepEmail, StepPassword, StepProfile
 │   ├── home/       HeroMockup (panel animado de la landing)
 │   └── layout/     TheNavigationDock, TheFooter
 ├── composables/    Lógica reutilizable (filtros, validadores, Deezer API,
 │                   acciones de biblioteca, audio preview, colores dominantes)
 ├── stores/         Pinia: music (biblioteca + API), auth (sesión), ui (snackbar)
-└── router/         Configuración de rutas
+└── router/         Configuración de rutas con lazy loading selectivo
 ```
 
-### Decisiones de diseño
-
-- **UI optimista**: al añadir un artista o álbum desde Explorar, se inserta
-  inmediatamente con datos básicos y se enriquece el género/año en segundo
-  plano con un `Promise.race` de timeout a 3 s
-  ([useLibraryActions.js](src/composables/useLibraryActions.js)).
-- **Validaciones centralizadas** en composable
-  ([useAuthValidators.js](src/composables/useAuthValidators.js)) más reglas
-  inline en cada `v-text-field`.
-- **Autenticación sin enumeración de usuarios**: el login devuelve siempre el
-  mismo mensaje tanto si el email no existe como si la contraseña falla
-  (alineado con OWASP ASVS v4).
-
 ---
 
-## Scripts
-
-| Comando | Efecto |
-|---|---|
-| `npm run dev` | Servidor de desarrollo con HMR |
-| `npm run build` | Build de producción en `/dist` |
-| `npm run preview` | Sirve el build en local |
-
----
-
-## Estructura del proyecto en Git
-
-El repositorio **no** incluye `node_modules` ni `dist` (ver `.gitignore`).
-Tras clonar, ejecutar `npm install` para restaurar dependencias.
+**Desarrollado por:** Susana Bitar
