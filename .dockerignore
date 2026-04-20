@@ -1,0 +1,13 @@
+/**
+ * @file .dockerignore
+ * @description Exclusión de archivos y directorios para el contexto de Docker.
+ * Evita la inclusión de dependencias locales y archivos de configuración sensibles.
+ */
+
+node_modules
+dist
+.git
+.dockerignore
+Dockerfile
+.env
+.vscode
