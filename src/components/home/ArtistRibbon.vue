@@ -32,25 +32,23 @@
 <script setup>
 /**
  * @file ArtistRibbon.vue
- * @description Cinta animada infinita (marquee) que expone los álbumes top del momento. Sirve de escaparate visual dinámico para la landing.
+ * @description Cinta tipo marquee con los álbumes en tendencia de Deezer.
+ * Se usa en la landing como escaparate vivo — la idea es que alguien que
+ * abre la home vea que la app "respira" con música real y no con mocks.
  */
 
 import { computed, ref, onMounted } from "vue";
 import { useDeezerApi } from "../../composables/useDeezerApi";
 
-// Consumimos el composable global para reutilizar la lógica de red
 const { fetchTrendingAlbums } = useDeezerApi();
 
-/**
- * Almacena los resultados limpios de la API.
- * Empieza vacío para no bloquear el renderizado inicial del template.
- */
+/** Álbumes normalizados para el marquee. Arranca vacío (el template ya lo soporta). */
 const artists = ref([]);
 
 /**
- * Pedimos los datos en cuanto el componente toca el DOM.
- * Mapeamos el JSON gigante de Deezer a un objeto ligero solo con lo que pintamos.
- * Priorizamos la imagen de máxima calidad (cover_xl) si existe.
+ * Traigo 15 álbumes al montar y me quedo sólo con lo que pinto (artista,
+ * título, imagen). Tiro de `cover_xl` si existe — en la cinta el marquee se
+ * ve grande y las imágenes de menos calidad cantan mucho.
  */
 onMounted(async () => {
   const data = await fetchTrendingAlbums(15);
@@ -62,9 +60,9 @@ onMounted(async () => {
 });
 
 /**
- * Truco matemático para el scroll infinito CSS.
- * Duplicamos el array exacto sobre sí mismo para que, cuando el primer set de tarjetas salga por la izquierda, el clon ya esté cubriendo el hueco.
- * @returns {Array} Lista doble de álbumes lista para el loop continuo
+ * Truco clásico del marquee infinito: duplico la lista sobre sí misma para
+ * que cuando la animación CSS traslada -50%, el segundo bloque entra justo
+ * donde estaba el primero y el bucle no tiene costura.
  */
 const marqueeItems = computed(() => {
   if (artists.value.length === 0) return [];
@@ -73,7 +71,7 @@ const marqueeItems = computed(() => {
 </script>
 
 <style scoped>
-/* CABECERA EDITORIAL (Igual que antes) */
+/* Cabecera del ribbon: título + subtítulo centrados. */
 .ribbon-header {
   text-align: center;
   margin-bottom: 40px;
@@ -98,7 +96,8 @@ const marqueeItems = computed(() => {
   margin: 0 auto;
 }
 
-/* CONTENEDOR Y ANIMACIÓN */
+/* Viewport del marquee. El mask de los laterales hace que las tarjetas
+   "desaparezcan" suavemente en los bordes en lugar de cortarse a pelo. */
 .artist-ribbon {
   width: 100%;
   padding: 20px 0 80px 0;
@@ -127,7 +126,7 @@ const marqueeItems = computed(() => {
 
 .marquee-track {
   display: flex;
-  gap: 20px; /* Separación Apple Music */
+  gap: 20px;
   width: max-content;
   will-change: transform;
   animation: marquee 40s linear infinite;
@@ -137,27 +136,27 @@ const marqueeItems = computed(() => {
   animation-play-state: paused;
 }
 
-/* LA TARJETA (ESTRUCTURA APPLE MUSIC) */
+/* Tarjeta del ribbon: ancho fijo para que el marquee avance a ritmo constante. */
 .ribbon-card {
-  flex: 0 0 240px; /* Ancho fijo de la tarjeta */
+  flex: 0 0 240px;
   max-width: 240px;
   display: flex;
   flex-direction: column;
   cursor: pointer;
 }
 
-/* CONTENEDOR DE LA PORTADA (1:1) */
+/* Portada cuadrada con sombra sutil. */
 .album-cover {
   width: 100%;
-  aspect-ratio: 1 / 1; /* Cuadrado perfecto */
-  border-radius: 12px; /* Redondeado suave de Apple */
+  aspect-ratio: 1 / 1;
+  border-radius: 12px;
   overflow: hidden;
   background: #e2e8f0;
-  box-shadow: 0 4px 12px rgba(10, 39, 92, 0.08); /* Sombra de profundidad */
+  box-shadow: 0 4px 12px rgba(10, 39, 92, 0.08);
   transition:
     transform 0.3s cubic-bezier(0.25, 1, 0.5, 1),
     box-shadow 0.3s ease;
-  margin-bottom: 12px; /* Separación con el texto */
+  margin-bottom: 12px;
 }
 
 .album-cover img {
@@ -167,13 +166,13 @@ const marqueeItems = computed(() => {
   display: block;
 }
 
-/* HOVER */
+/* Al hover, la tarjeta sube un poco y la sombra se intensifica. */
 .ribbon-card:hover .album-cover {
   transform: translateY(-4px) scale(1.02);
   box-shadow: 0 12px 24px rgba(10, 39, 92, 0.15);
 }
 
-/* INFORMACIÓN DE TEXTO */
+/* Texto bajo la portada (artista + álbum). */
 .album-info {
   width: 100%;
   padding: 0 2px;
@@ -201,7 +200,9 @@ const marqueeItems = computed(() => {
   text-overflow: ellipsis;
 }
 
-/* MATEMÁTICA DEL LOOP */
+/* Loop infinito. Llego hasta -50% (mitad del track) porque la lista está
+   duplicada; al completar el ciclo, la imagen coincide visualmente con el
+   inicio y no hay "salto". El -10px compensa el gap entre tarjetas. */
 @keyframes marquee {
   0% {
     transform: translateX(0);

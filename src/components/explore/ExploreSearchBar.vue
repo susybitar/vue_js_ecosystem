@@ -47,15 +47,19 @@
 <script setup>
 /**
  * @file ExploreSearchBar.vue
- * @description Buscador universal de la sección Explorar. Gestiona el input de texto y los filtros por categoría.
- */
-
-/**
- * Datos que controlan el estado del buscador
- * @param {string} modelValue - Texto actual escrito por el usuario (v-model)
- * @param {string} searchType - Categoría activa ('artist', 'album', 'track')
- * @param {boolean} [loading=false] - Bloquea el botón para evitar que el usuario lance peticiones repetidas
- * @param {string} [placeholder] - Texto de ayuda dinámico (cambia si buscamos o vemos tendencias)
+ * @description Buscador del Explorer: input + botón "Buscar" + pestañas
+ * (artistas / álbumes / canciones). Uso un `<input>` nativo (no `v-text-field`)
+ * para tener control absoluto del CSS sin pelearme con los overrides internos
+ * de Vuetify. La búsqueda no se dispara mientras se escribe — sólo al pulsar
+ * Enter o el botón — para no bombardear Deezer con peticiones por cada tecla.
+ *
+ * @prop {string} modelValue - Texto actual (v-model).
+ * @prop {"artist"|"album"|"track"} searchType - Pestaña activa (v-model:searchType).
+ * @prop {boolean} [loading=false] - Deshabilita el botón mientras hay una petición en vuelo.
+ * @prop {string} [placeholder] - Placeholder adaptado al tipo activo.
+ * @fires update:modelValue - Cambios del texto.
+ * @fires update:searchType - Cambio de pestaña.
+ * @fires search - Usuario pidió buscar (Enter o click en "Buscar").
  */
 defineProps({
   modelValue: { type: String, required: true },
@@ -67,18 +71,9 @@ defineProps({
   },
 });
 
-/**
- * Eventos para sincronizar la UI con la vista principal
- * @fires update:modelValue - Emite los cambios de texto en tiempo real
- * @fires update:searchType - Avisa cuando el usuario salta de pestaña
- * @fires search - Dispara la consulta a la API (al dar Enter o clic en Buscar)
- */
 defineEmits(["update:modelValue", "update:searchType", "search"]);
 
-/**
- * Configuración estática de las pestañas.
- * Lo definimos aquí como array para iterarlo en el template y evitar repetir código HTML.
- */
+/** Pestañas disponibles. Array para poder iterarlo en el template. */
 const typeTabs = [
   { value: "artist", label: "Artistas", icon: "mdi-account-music" },
   { value: "album", label: "Álbumes", icon: "mdi-album" },

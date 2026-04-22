@@ -13,6 +13,7 @@
       autocomplete="name"
       autofocus
       :rules="nameRules"
+      validate-on="submit invalid-input lazy"
     />
   </div>
 
@@ -23,6 +24,7 @@
       hide-details="auto"
       class="dark-checkbox-fix"
       :rules="termsRules"
+      validate-on="submit invalid-input lazy"
     >
       <template v-slot:label>
         Acepto los <a href="#">términos y condiciones</a>
@@ -34,28 +36,24 @@
 <script setup>
 /**
  * @file StepProfile.vue
- * @description Tercer y último paso del registro. Captura el nombre del usuario y la aceptación de los términos legales.
- * Las reglas inline muestran feedback mientras se completa; el gating final
- * del botón "Finalizar registro" sigue centralizado en RegisterView.
- */
-
-/**
- * Datos del formulario vinculados mediante v-model
- * @param {string} name - Nombre introducido en el input
- * @param {boolean} terms - Estado de la casilla de verificación
+ * @description Paso 3 del registro: nombre + aceptación de términos. El
+ * gating del botón "Finalizar registro" está en RegisterView; aquí me quedo
+ * con las reglas inline que dan feedback debajo de cada campo.
+ *
+ * @prop {string} name - Nombre escrito (v-model:name).
+ * @prop {boolean} terms - Casilla de términos marcada (v-model:terms).
+ * @fires update:name - Nuevo nombre.
+ * @fires update:terms - Nuevo estado del check.
  */
 defineProps(["name", "terms"]);
-
-/**
- * Eventos para sincronizar los datos hacia el componente padre
- * @fires update:name - Emite el nombre actualizado tecla a tecla
- * @fires update:terms - Emite el cambio al marcar/desmarcar la casilla
- */
 defineEmits(["update:name", "update:terms"]);
 
 /**
- * Reglas del nombre. Aceptamos letras Unicode (soporta acentos, K-pop, etc.),
- * espacios, apóstrofes y guiones. No permitimos números ni símbolos raros.
+ * Reglas del nombre. Dejo letras Unicode (acentos, hangul, etc.), espacios,
+ * apóstrofes y guiones — nada de números ni símbolos. El `validate-on="submit
+ * invalid-input lazy"` del template hace que el rojo sólo salga al intentar
+ * enviar, y que luego se corrija en vivo; `lazy` evita que el campo arranque
+ * marcado como inválido al montar.
  */
 const nameRules = [
   (v) => !!v?.trim() || "¿Cómo te llamamos?",
@@ -66,7 +64,10 @@ const nameRules = [
     "Solo letras, espacios y guiones",
 ];
 
-/** Forzamos la aceptación explícita de los términos antes de finalizar. */
+/**
+ * Regla del checkbox. Obligo a marcar los términos; el mensaje sólo aparece
+ * si el usuario intenta enviar sin haberlo hecho.
+ */
 const termsRules = [(v) => !!v || "Debes aceptar los términos para continuar"];
 </script>
 

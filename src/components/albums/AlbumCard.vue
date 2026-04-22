@@ -47,25 +47,22 @@
 <script setup>
 /**
  * @file AlbumCard.vue
- * @description Tarjeta visual para mostrar un álbum. Incluye controles de edición y borrado al hacer hover.
- */
-
-/**
- * Datos que recibe el componente
- * @param {Object} album - Objeto con los datos del álbum (title, cover, year, etc.)
- * @param {string} [artistName="Desconocido"] - Nombre del artista para mostrar debajo del título
+ * @description Tarjeta de un álbum. Al hacer hover enseña dos botones
+ * (editar / borrar) encima de la portada. Si no hay cover cargada, tiro de
+ * una imagen placeholder de Unsplash para que la tarjeta no se vea rota.
+ *
+ * @prop {Object} album - Álbum con `title`, `cover`, `year`, `artistId`, etc.
+ * @prop {string} [artistName="Desconocido"] - Nombre del artista; lo recibo
+ *   del padre para no tener que buscarlo en el store desde aquí.
+ * @fires click - Click en la tarjeta.
+ * @fires edit - Click en el botón editar. Paso el álbum como payload.
+ * @fires delete - Click en el botón borrar. Paso el álbum como payload.
  */
 defineProps({
   album: { type: Object, required: true },
   artistName: { type: String, default: "Desconocido" },
 });
 
-/**
- * Eventos que lanza la tarjeta
- * @fires click - Al hacer clic en cualquier parte de la tarjeta
- * @fires edit - Al pulsar el botón de editar. Devuelve el objeto album
- * @fires delete - Al pulsar el botón de borrar. Devuelve el objeto album
- */
 defineEmits(["click", "edit", "delete"]);
 </script>
 

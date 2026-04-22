@@ -79,8 +79,15 @@
 <script setup>
 /**
  * @file AlbumDialog.vue
- * @description Modal para la gestión de álbumes con validación de integridad
- * y vinculación reactiva al store de música.
+ * @description Modal crear/editar álbum. Lo uso para ambos casos — si el
+ * padre me pasa un `album`, entra en modo edición; si no, creación. No muto
+ * el álbum original hasta que el usuario pulse "Guardar": trabajo sobre una
+ * copia local (`form`) y emito el payload al padre.
+ *
+ * @prop {boolean} modelValue - v-model: abre/cierra el modal.
+ * @prop {Object} [album=null] - Álbum a editar. Si es null → modo creación.
+ * @fires update:modelValue - Cierre del modal.
+ * @fires save - Payload listo para crear/actualizar en el store.
  */
 
 import { reactive, watch, computed, ref } from "vue";
@@ -95,6 +102,10 @@ const emit = defineEmits(["update:modelValue", "save"]);
 const musicStore = useMusicStore();
 const isValid = ref(false);
 
+/**
+ * Lista de años para el select. Corto en 1950 porque no espero discos
+ * anteriores; si alguno mete algo más antiguo siempre puedo bajar este límite.
+ */
 const years = computed(() => {
   const currentYear = new Date().getFullYear();
   const list = [];
@@ -106,6 +117,7 @@ const years = computed(() => {
 
 const isEditing = computed(() => !!props.album);
 
+// Copia local que se edita en el modal. No toco `props.album` directamente.
 const form = reactive({
   title: "",
   artistId: null,
@@ -113,9 +125,10 @@ const form = reactive({
 });
 
 /**
- * Reglas del título. Evitamos que el mismo artista tenga dos álbumes con
- * idéntico título (case-insensitive); al editar, excluimos el propio álbum
- * de la comprobación.
+ * Reglas del título. Además del mínimo/máximo, evito que un mismo artista
+ * tenga dos álbumes con idéntico título (case-insensitive). En modo edición
+ * ignoro el propio álbum de la comprobación — si no, no dejaría "editar sin
+ * cambiar el título".
  */
 const titleRules = computed(() => [
   (v) => !!v || "El título es obligatorio",
@@ -136,6 +149,11 @@ const titleRules = computed(() => [
   },
 ]);
 
+/**
+ * Cada vez que se abre el modal, relleno el form con los datos del álbum (si
+ * edito) o lo reseteo (si creo). Miro sólo el flanco "de cerrado a abierto"
+ * porque al cerrar no hace falta tocar nada.
+ */
 watch(
   () => props.modelValue,
   (isOpen) => {
@@ -152,6 +170,10 @@ watch(
   },
 );
 
+/**
+ * Submit. Emito el payload al padre (incluyendo el `id` en modo edición
+ * para que pueda diferenciar create vs update) y cierro el modal.
+ */
 function submit() {
   if (!isValid.value) return;
 

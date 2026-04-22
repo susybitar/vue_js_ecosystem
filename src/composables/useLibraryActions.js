@@ -1,32 +1,34 @@
 /**
  * @file useLibraryActions.js
- * @description Puente entre los resultados de Deezer y la biblioteca local del usuario.
- * Implementa un patrón de UI optimista para que la adición de elementos sea instantánea
- * mientras los metadatos pesados se cargan en segundo plano.
+ * @description Puente entre los resultados de Deezer y la biblioteca local
+ * del usuario. Añado el ítem al instante con los datos del listado y en
+ * paralelo disparo llamadas extra para rellenar género/año. Así el toast
+ * de "añadido a tu biblioteca" salta al momento, sin esperar al segundo
+ * fetch que completa los metadatos.
  */
 
 import { useMusicStore } from '../stores/music'
 import { useDeezerApi } from './useDeezerApi'
 
-/**
- * Hook para gestionar las acciones de guardado en la biblioteca.
- * @returns {Object} Métodos para verificar existencia y añadir artistas o álbumes.
- */
 export function useLibraryActions() {
   const musicStore = useMusicStore()
   const { resolveArtistGenre, resolveAlbumYear, genreMap } = useDeezerApi()
 
-  /** * Tiempo máximo de espera para el enriquecimiento de datos.
-   * Evita que procesos en segundo plano queden colgados indefinidamente.
+  /**
+   * Corto por lo sano las promesas del enriquecimiento a los 3s: si Deezer
+   * tarda más, prefiero que el álbum se quede con el género "Independiente"
+   * antes que dejar una promesa colgando indefinidamente.
    */
   const ENRICH_TIMEOUT_MS = 3000
 
   /**
-   * Ejecuta una promesa con un tiempo límite de expiración.
-   * @param {Promise} promise - Tarea asíncrona a realizar.
-   * @param {number} ms - Tiempo en milisegundos.
-   * @param {any} fallback - Valor devuelto si se alcanza el timeout.
-   * @returns {Promise}
+   * Compite una promesa contra un timer. Si gana el timer, devuelve el
+   * valor `fallback` y la promesa original se ignora silenciosamente.
+   * @template T
+   * @param {Promise<T>} promise
+   * @param {number} ms
+   * @param {T} fallback
+   * @returns {Promise<T>}
    */
   function withTimeout(promise, ms, fallback) {
     return Promise.race([
@@ -36,8 +38,8 @@ export function useLibraryActions() {
   }
 
   /**
-   * Comprueba si un artista ya existe en el store local.
-   * @param {string} name - Nombre del artista.
+   * ¿El artista (por nombre) ya está en la biblioteca del usuario?
+   * @param {string} name
    * @returns {boolean}
    */
   function isArtistInLibrary(name) {
@@ -45,9 +47,9 @@ export function useLibraryActions() {
   }
 
   /**
-   * Comprueba si un álbum específico de un artista ya está guardado.
-   * @param {string} title - Título del disco.
-   * @param {string} artistName - Nombre del artista.
+   * ¿Este álbum concreto (título + artista) ya está guardado?
+   * @param {string} title
+   * @param {string} artistName
    * @returns {boolean}
    */
   function isAlbumInLibrary(title, artistName) {
@@ -59,9 +61,11 @@ export function useLibraryActions() {
   }
 
   /**
-   * Busca y actualiza el género de un artista en segundo plano.
-   * @param {number} localId - ID interno del artista.
-   * @param {number} deezerId - ID del artista en la API externa.
+   * Resuelve el género del artista contra Deezer y lo aplica en el store.
+   * Va en segundo plano: el usuario ya tiene el artista creado con
+   * "Independiente" como placeholder.
+   * @param {number} localId - ID interno dentro de nuestro store.
+   * @param {number} deezerId - ID del artista en Deezer.
    */
   async function enrichArtistGenre(localId, deezerId) {
     const genre = await withTimeout(resolveArtistGenre(deezerId), ENRICH_TIMEOUT_MS, null)
@@ -71,9 +75,9 @@ export function useLibraryActions() {
   }
 
   /**
-   * Busca y actualiza el año de un álbum en segundo plano.
-   * @param {number} localId - ID interno del álbum.
-   * @param {number} deezerId - ID del álbum en la API externa.
+   * Igual que enrichArtistGenre pero para el año de un álbum.
+   * @param {number} localId
+   * @param {number} deezerId
    */
   async function enrichAlbumYear(localId, deezerId) {
     const year = await withTimeout(resolveAlbumYear(deezerId), ENRICH_TIMEOUT_MS, null)
@@ -83,8 +87,9 @@ export function useLibraryActions() {
   }
 
   /**
-   * Intenta resolver el género musical del álbum analizando sus datos o los de su artista.
-   * @param {object} item - Payload del álbum.
+   * Intenta encontrar un género para el álbum. Primero mira si el propio
+   * payload trae `genre_id` conocido; si no, tira del género del artista.
+   * @param {object} item - Ítem de Deezer.
    * @returns {Promise<string|null>}
    */
   async function resolveGenreForAlbum(item) {
@@ -95,12 +100,13 @@ export function useLibraryActions() {
   }
 
   /**
-   * Añade un artista a la biblioteca y dispara la búsqueda de su género.
-   * @param {object} item - Datos del artista provenientes de Deezer.
+   * Añade un artista a la biblioteca desde un payload de Deezer y dispara
+   * el enriquecimiento de género en segundo plano.
+   * @param {object} item
    */
   function addArtistToLibrary(item) {
     if (isArtistInLibrary(item.name)) return
-    
+
     const newArtist = musicStore.addArtist(
       item.name,
       null,
@@ -110,25 +116,26 @@ export function useLibraryActions() {
   }
 
   /**
-   * Añade un álbum a la biblioteca.
-   * Crea automáticamente al artista si no existía previamente para mantener la integridad.
-   * @param {object} item - Datos del álbum provenientes de Deezer.
+   * Añade un álbum desde Deezer. Si su artista no estaba en la biblioteca,
+   * lo creo primero en modo silencioso para que sólo salte un toast (el
+   * del álbum) en lugar de dos seguidos.
+   * @param {object} item
    */
   function addAlbumToLibrary(item) {
     const artistName = item.artist?.name
     if (!artistName) return
 
     let artist = musicStore.findArtistByName(artistName)
-    
-    // Si el artista no existe, lo creamos primero
+
     if (!artist) {
       artist = musicStore.addArtist(
         artistName,
         null,
-        item.artist?.picture_big || item.artist?.picture_medium || null
+        item.artist?.picture_big || item.artist?.picture_medium || null,
+        { silent: true }
       )
-      
-      // Enriquecemos el género del nuevo artista
+
+      // Además de crear al artista, aprovecho para resolver su género.
       resolveGenreForAlbum(item).then((genre) => {
         if (genre && genre !== 'Sin clasificar') {
           musicStore.setArtistGenre(artist.id, genre)
@@ -138,7 +145,7 @@ export function useLibraryActions() {
 
     if (isAlbumInLibrary(item.title, artistName)) return
 
-    // Priorizamos el año si viene en el payload inmediato
+    // Si el payload del listado ya trae la fecha, me ahorro el fetch extra.
     const immediateYear = item.release_date
       ? Number(item.release_date.slice(0, 4))
       : null
@@ -150,7 +157,6 @@ export function useLibraryActions() {
       item.cover_big || item.cover_medium
     )
 
-    // Si no teníamos el año, lo buscamos en diferido
     if (!immediateYear) {
       enrichAlbumYear(newAlbum.id, item.id)
     }

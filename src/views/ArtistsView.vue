@@ -125,47 +125,23 @@
       @save="saveArtist"
     />
 
-    <v-dialog v-model="deleteDialog" max-width="350">
-      <v-card
-        class="bg-grey-darken-4 pa-5 rounded-xl text-center border-sm"
-        style="border-color: rgba(255, 255, 255, 0.1) !important"
-      >
-        <v-icon color="error" size="48" class="mb-4"
-          >mdi-alert-circle-outline</v-icon
-        >
-        <h3 class="text-white text-h6 font-weight-black mb-2">
-          ¿Eliminar artista?
-        </h3>
-        <p class="text-grey text-body-2 mb-6">
-          Esta acción borrará el artista y todos sus álbumes vinculados. No se
-          puede deshacer.
-        </p>
-        <div class="d-flex ga-3">
-          <v-btn
-            variant="text"
-            color="white"
-            class="flex-grow-1 text-none font-weight-bold"
-            @click="deleteDialog = false"
-            >Cancelar</v-btn
-          >
-          <v-btn
-            color="error"
-            variant="flat"
-            class="flex-grow-1 text-none font-weight-black"
-            @click="executeDelete"
-            >Eliminar</v-btn
-          >
-        </div>
-      </v-card>
-    </v-dialog>
+    <ConfirmDialog
+      v-model="deleteDialog"
+      title="¿Eliminar artista?"
+      message="Esta acción borrará el artista y todos sus álbumes vinculados. No se puede deshacer."
+      confirm-label="Eliminar"
+      @confirm="executeDelete"
+    />
   </v-layout>
 </template>
 
 <script setup>
 /**
  * @file ArtistsView.vue
- * @description Vista principal de gestión de la biblioteca de artistas.
- * Implementa filtrado dinámico por género, búsqueda en tiempo real y ordenación.
+ * @description Lista de artistas de la biblioteca con búsqueda, filtrado por
+ * género y orden A-Z / Z-A. La búsqueda la llevo en `useArtistFilters` y aquí
+ * encima aplico el filtro por género y la ordenación. Al pulsar una tarjeta,
+ * navego a la discografía de ese artista.
  */
 
 import { ref, computed } from "vue";
@@ -178,15 +154,16 @@ import TheNavigationDock from "../components/layout/TheNavigationDock.vue";
 import TheFooter from "../components/layout/TheFooter.vue";
 import ArtistCard from "../components/artists/ArtistCard.vue";
 import ArtistDialog from "../components/artists/ArtistDialog.vue";
+import ConfirmDialog from "../components/ui/ConfirmDialog.vue";
 
 const router = useRouter();
 const musicStore = useMusicStore();
 
-// Lógica de búsqueda reactiva delegada al composable
+// El composable ya me da la lista filtrada por texto.
 const { searchQuery, filteredArtists: baseFilteredArtists } =
   useArtistFilters();
 
-/** Estados reactivos para la gestión de diálogos y filtrado local */
+// Estado local: diálogos + filtro de género + modo de orden.
 const dialogOpen = ref(false);
 const deleteDialog = ref(false);
 const editingArtist = ref(null);
@@ -196,43 +173,40 @@ const activeGenreFilter = ref(null);
 const currentSort = ref("name-asc");
 
 /**
- * Extrae géneros únicos del store para generar los botones de filtro dinámicamente.
+ * Lista de géneros que aparecen en la biblioteca, sin repetir. Los pinto como
+ * botones de filtro — si el usuario no tiene artistas con género, esta lista
+ * queda vacía y sólo se ve el botón "Todos".
  */
 const uniqueGenres = computed(() => {
   const genres = musicStore.artists.map((a) => a.genre).filter(Boolean);
   return [...new Set(genres)];
 });
 
-/**
- * Mapeo visual para el botón de ordenación.
- */
+/** Icono + etiqueta del botón de orden según el modo actual. */
 const sortUI = computed(() => {
   return currentSort.value === "name-asc"
     ? { icon: "mdi-sort-alphabetical-ascending", label: "A-Z" }
     : { icon: "mdi-sort-alphabetical-descending", label: "Z-A" };
 });
 
-/**
- * Alterna cíclicamente entre orden ascendente y descendente.
- */
+/** Alterna entre A-Z y Z-A. */
 function cycleSortMode() {
   currentSort.value =
     currentSort.value === "name-asc" ? "name-desc" : "name-asc";
 }
 
 /**
- * Procesamiento final de la lista de artistas.
- * Combina el filtro de búsqueda del composable con los filtros locales de género y orden.
+ * Lista final que pinta el template: parte de la búsqueda textual del
+ * composable y encima aplica el filtro de género y la ordenación. La hago
+ * computed para que todo reaccione sin tener que disparar nada a mano.
  */
 const finalFilteredArtists = computed(() => {
   let list = baseFilteredArtists.value || [];
 
-  // Filtrado por género
   if (activeGenreFilter.value) {
     list = list.filter((a) => a.genre === activeGenreFilter.value);
   }
 
-  // Ordenación alfabética
   if (currentSort.value === "name-asc") {
     list.sort((a, b) => a.name.localeCompare(b.name));
   } else {
@@ -242,23 +216,28 @@ const finalFilteredArtists = computed(() => {
   return list;
 });
 
-/** Navegación a la discografía del artista */
+/** Click en la tarjeta → discografía del artista (ruta anidada de álbumes). */
 function goToArtistAlbums(id) {
   router.push(`/profile/artists/${id}/albums`);
 }
 
+/** Abre el modal en modo "crear artista". */
 function openCreateDialog() {
   editingArtist.value = null;
   dialogOpen.value = true;
 }
 
+/** Abre el modal en modo "editar" con un artista ya existente. */
 function openEditDialog(artist) {
   editingArtist.value = artist;
   dialogOpen.value = true;
 }
 
 /**
- * Guarda los cambios o crea un nuevo artista en el store de Pinia.
+ * Handler de `save` del ArtistDialog. Si el payload trae `id`, es edición;
+ * si no, creación.
+ *
+ * @param {{ id?: number, name: string, genre?: string }} payload
  */
 function saveArtist(payload) {
   if (payload.id) {
@@ -268,28 +247,26 @@ function saveArtist(payload) {
   }
 }
 
-/**
- * Abre el diálogo de seguridad antes de ejecutar una eliminación destructiva.
- */
+/** Guarda el artista objetivo y abre el diálogo de confirmación. */
 function confirmRemove(artist) {
   artistToDelete.value = artist;
   deleteDialog.value = true;
 }
 
 /**
- * Ejecuta el borrado real en el store y sincroniza la UI.
+ * Borrado definitivo. El ConfirmDialog se cierra solo tras emitir `confirm`;
+ * aquí sólo llamo al store y limpio el artista objetivo.
  */
 function executeDelete() {
   if (artistToDelete.value) {
     musicStore.deleteArtist(artistToDelete.value.id);
   }
-  deleteDialog.value = false;
   artistToDelete.value = null;
 }
 </script>
 
 <style scoped>
-/* Contenedor optimizado para el dock lateral fijo */
+/* Padding izquierdo grande para dejar sitio al dock fijo de la izquierda. */
 .page-container {
   padding: 48px 48px 48px 120px !important;
   max-width: 1600px;
@@ -331,7 +308,7 @@ function executeDelete() {
   letter-spacing: -1px;
 }
 
-/* Buscador minimalista integrado en el tema oscuro */
+/* Buscador. El borde apenas se ve hasta que recibe focus. */
 .search-bar {
   width: 220px;
 }

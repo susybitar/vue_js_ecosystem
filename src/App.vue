@@ -59,20 +59,24 @@
     <v-main :class="{ 'pa-0': isFullPage }">
       <router-view />
     </v-main>
+
+    <GlobalSnackbar />
   </v-app>
 </template>
 
 <script setup>
 /**
  * @file App.vue
- * @description Componente raíz de la aplicación. Orquesta el diseño global,
- * gestiona la visibilidad de la barra de navegación y aplica el tema visual
- * según la ruta activa (Pitch Black para gestión o claro para estáticas).
+ * @description Componente raíz. Decide según la ruta si enseñar la barra
+ * de navegación y si aplicar el tema oscuro de la zona de gestión. El
+ * snackbar global vive aquí para que pueda dispararse desde cualquier
+ * vista sin tener que montarlo varias veces.
  */
 
 import { computed } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "./stores/auth";
+import GlobalSnackbar from "./components/ui/GlobalSnackbar.vue";
 import favicon from "@/assets/img/logotipo/favicon.svg";
 
 const route = useRoute();
@@ -80,8 +84,9 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 /**
- * Determina si la página debe ocupar el 100% del viewport sin márgenes.
- * Se aplica a los flujos de autenticación y a la zona privada del perfil.
+ * Las pantallas "full-page" ocupan todo el viewport sin padding superior
+ * (flujos de auth + toda la zona del perfil). El resto (landing) sí
+ * respeta el layout por defecto de Vuetify.
  */
 const isFullPage = computed(() => {
   const paths = [
@@ -94,24 +99,19 @@ const isFullPage = computed(() => {
 });
 
 /**
- * Controla la barra de navegación de Vuetify.
- * No se muestra en la Home (usa una personalizada) ni en las zonas de gestión.
+ * La navbar de Vuetify no la quiero ni en la Home (tiene su propia cabecera
+ * custom) ni en las vistas full-page (usan el dock lateral).
  */
 const showNavbar = computed(() => {
   return route.path !== "/" && !isFullPage.value;
 });
 
-/**
- * Aplica clases de CSS condicionales para forzar el fondo negro puro en
- * áreas de trabajo profesionales.
- */
+/** Activa el fondo negro puro en la zona privada. */
 const themeClass = computed(() => ({
   "pitch-black-mode": isFullPage.value,
 }));
 
-/**
- * Lógica de salida de usuario: limpia el store y redirige al acceso.
- */
+/** Cierra sesión y manda al login. */
 const handleLogout = () => {
   authStore.logout();
   router.push("/login");
@@ -119,16 +119,16 @@ const handleLogout = () => {
 </script>
 
 <style>
-/* Tipografía base del proyecto */
+/* Fuente global de la app. */
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700;800;900&display=swap");
 
 .v-application {
   font-family: "Montserrat", sans-serif !important;
-  background-color: #f5f8ff !important; /* Fondo claro por defecto (Landing) */
+  background-color: #f5f8ff !important; /* Fondo de la landing. */
 }
 
-/* --- TEMA PITCH BLACK --- */
-/* Forzado de colores para una experiencia de usuario oscura y sin distracciones */
+/* Tema negro de la zona privada. Uso !important porque Vuetify aplica
+   su propio background sobre .v-application__wrap y si no gano yo. */
 .pitch-black-mode,
 .pitch-black-mode .v-application__wrap {
   background-color: #000000 !important;
@@ -139,7 +139,7 @@ const handleLogout = () => {
   padding-top: 0 !important;
 }
 
-/* Estilización de la Navbar superior con efecto cristalizado */
+/* Navbar superior en cristal: mismo lenguaje visual que el dock lateral. */
 .glass-navbar {
   background-color: rgba(245, 248, 255, 0.8) !important;
   backdrop-filter: blur(16px);

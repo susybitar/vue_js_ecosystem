@@ -42,17 +42,16 @@
 <script setup>
 /**
  * @file RecentAlbumsGrid.vue
- * @description Componente que renderiza una rejilla de álbumes.
- * Se encarga de buscar los nombres de los artistas y resolver las portadas
- * tirando del store o de fallbacks externos.
+ * @description Rejilla "últimos álbumes" del dashboard del perfil. Resuelvo
+ * aquí la portada y el nombre del artista para no meter esa lógica en el
+ * template. Pinchar un álbum lleva directamente a la discografía del
+ * artista — es el atajo que más uso yo mismo.
+ *
+ * @prop {Array} albums - Álbumes que pinto (el padre ya los recorta a 6).
  */
 
 import { useMusicStore } from "../../stores/music";
 
-/**
- * Propiedades del componente
- * @param {Array} albums - Colección de álbumes a mostrar en el grid
- */
 defineProps({
   albums: { type: Array, required: true },
 });
@@ -60,10 +59,11 @@ defineProps({
 const musicStore = useMusicStore();
 
 /**
- * Lógica para determinar qué imagen mostrar en la carátula.
- * Sigue un orden de prioridad: portada del disco > imagen del artista > fallback genérico.
- * @param {object} album - Objeto con la información del álbum
- * @returns {string} URL de la imagen resultante
+ * Decide qué imagen mostrar en la portada siguiendo este orden:
+ *   1. Si el álbum tiene `cover` propia (añadido vía Explore), esa.
+ *   2. Si no, la imagen del artista (mejor eso que nada).
+ *   3. Si tampoco, placeholder de Unsplash, usando `artistId` como `sig` para
+ *      que cada artista mantenga siempre la misma foto aleatoria.
  */
 function resolveCover(album) {
   if (album.cover) return album.cover;
@@ -71,14 +71,13 @@ function resolveCover(album) {
   const artist = musicStore.artists.find((a) => a.id === album.artistId);
   if (artist?.image) return artist.image;
 
-  // Si no hay nada, devolvemos una imagen por defecto usando el artistId como semilla
   return `https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=500&fit=crop&sig=${album.artistId}`;
 }
 
 /**
- * Busca en el store de música el nombre del artista asociado al álbum.
- * @param {number} artistId - ID del artista a buscar
- * @returns {string} Nombre del artista o 'Desconocido' si no se encuentra
+ * Nombre del artista del álbum. Si no lo encuentro en el store (puede pasar
+ * con datos importados o con algún estado intermedio), caigo a "Desconocido"
+ * para no dejar la card con una línea en blanco.
  */
 function resolveArtistName(artistId) {
   const artist = musicStore.artists.find((a) => a.id === artistId);
@@ -124,7 +123,7 @@ function resolveArtistName(artistId) {
   cursor: pointer;
 }
 
-/* Efecto visual de profundidad y zoom suave al interactuar con la tarjeta */
+/* Portada cuadrada con sombra. Al hover, sube ligeramente + intensifica sombra. */
 .card-cover {
   position: relative;
   width: 100%;

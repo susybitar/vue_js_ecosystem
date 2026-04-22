@@ -46,21 +46,20 @@
 <script setup>
 /**
  * @file GlobalFooter.vue
- * @description Pie de página estático. Contiene la información corporativa, los enlaces a legales y la navegación secundaria.
+ * @description Pie grande de la landing. Tiene logo, descripción, navegación
+ * secundaria y legales. El `TheFooter` minimalista es para las vistas
+ * internas — aquí me puedo permitir más cosas porque estoy en la home.
  */
 
 import { computed } from "vue";
 import logo from "@/assets/img/logotipo/logo_music_space.svg";
 
-/**
- * Calculamos el año en curso para que el copyright siempre esté actualizado
- * sin tener que cambiarlo a mano en enero.
- */
+/** Año actual para el copyright. Así no tengo que tocarlo cada enero. */
 const currentYear = computed(() => new Date().getFullYear());
 </script>
 
 <style scoped>
-/* ─── FONDO PITCH BLACK DEFINITIVO ─── */
+/* Fondo negro absoluto; rompe con la sección clara superior. */
 .global-footer {
   position: relative;
   background: #000000 !important;
@@ -68,7 +67,8 @@ const currentYear = computed(() => new Date().getFullYear());
   color: #ffffff;
 }
 
-/* EL HORIZONTE DE NEÓN (Separador Visual) */
+/* Línea azul horizontal en el borde superior como separador, con un leve
+   glow para que parezca una "horizon line" de neón. */
 .global-footer::before {
   content: "";
   position: absolute;

@@ -1,39 +1,38 @@
 /**
  * @file useArtistFilters.js
- * @description Composable para gestionar la lógica de búsqueda y filtrado de artistas por género.
- * Ayuda a mantener las vistas limpias delegando el procesamiento de las listas.
+ * @description Búsqueda por nombre + filtro por género para la lista de
+ * artistas. Lo tengo como composable para mantener ArtistsView lo más
+ * limpia posible (la parte de orden se hace a nivel de CSS grid).
  */
 
 import { ref, computed } from 'vue';
 import { useMusicStore } from '../stores/music';
 
 /**
- * Hook para filtrar la colección de artistas.
- * @returns {Object} Estados reactivos para el input de búsqueda, el género activo y la lista resultante.
+ * @returns {{
+ *   searchQuery: import('vue').Ref<string>,
+ *   activeGenre: import('vue').Ref<string|null>,
+ *   filteredArtists: import('vue').ComputedRef<Array>
+ * }}
  */
 export function useArtistFilters() {
   const musicStore = useMusicStore();
 
-  /** Texto de búsqueda vinculado al input del usuario */
+  /** Texto del buscador. */
   const searchQuery = ref("");
 
-  /** Género seleccionado para filtrar (null si se muestran todos) */
+  /** Género seleccionado; null significa "todos". */
   const activeGenre = ref(null);
 
-  /**
-   * Lista de artistas procesada.
-   * Filtra por nombre (case-insensitive) y por género de forma simultánea.
-   */
+  /** Artistas tras aplicar los dos filtros. */
   const filteredArtists = computed(() => {
     let list = [...musicStore.artists];
 
-    // Aplicamos filtro por nombre si el usuario ha escrito algo
     if (searchQuery.value) {
       const q = searchQuery.value.toLowerCase();
       list = list.filter(a => a.name.toLowerCase().includes(q));
     }
 
-    // Aplicamos filtro por género si hay uno seleccionado
     if (activeGenre.value) {
       list = list.filter(a => a.genre === activeGenre.value);
     }
@@ -41,9 +40,9 @@ export function useArtistFilters() {
     return list;
   });
 
-  return { 
-    searchQuery, 
-    activeGenre, 
-    filteredArtists 
+  return {
+    searchQuery,
+    activeGenre,
+    filteredArtists
   };
 }

@@ -1,7 +1,7 @@
 <template>
   <div class="forgot-page">
     <div class="forgot-form-panel">
-      <div class="forgot-card">
+      <div class="forgot-card" :class="{ 'shake-error': forgotError }">
         <div class="card-icon-wrap">
           <router-link to="/">
             <img
@@ -41,6 +41,8 @@
               density="comfortable"
               rounded="lg"
               hide-details="auto"
+              :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
+              @click:append-inner="showPassword = !showPassword"
               class="forgot-field-dark"
             />
 
@@ -78,6 +80,7 @@
               density="comfortable"
               rounded="lg"
               hide-details="auto"
+              :rules="confirmRules"
               class="forgot-field-dark"
             />
           </div>
@@ -101,7 +104,7 @@
           variant="text"
           block
           class="mt-4 text-none back-btn"
-          @click="$router.push('/login')"
+          @click="router.push('/login')"
         >
           ← Atrás
         </v-btn>
@@ -113,61 +116,102 @@
 <script setup>
 /**
  * @file ForgotPasswordView.vue
- * @description Vista para el restablecimiento de contraseñas. Implementa validaciones
- * de seguridad en tiempo real y persistencia a través del AuthStore.
+ * @description "Olvidé mi contraseña". Pido email + nueva contraseña (con
+ * confirmación) y delego el cambio en el AuthStore. Tiro de los mismos
+ * validadores compartidos que el registro para que los requisitos sean
+ * idénticos en todos los formularios de la app.
+ *
+ * Aquí SÍ revelo si el email existe, al contrario que en login. Es una
+ * concesión a la UX: si no lo hiciese en una app "de demo con localStorage",
+ * el usuario podría quedarse escribiendo contraseñas nuevas para siempre
+ * sin entender por qué no entra.
  */
 
 import { ref, computed } from "vue";
+import { useRouter } from "vue-router";
 import { useAuthStore } from "../stores/auth";
+import { useUIStore } from "../stores/ui";
+import { useAuthValidators } from "../composables/useAuthValidators";
 import simbolo from "@/assets/img/logotipo/favicon.svg";
 
+const router = useRouter();
 const authStore = useAuthStore();
+const uiStore = useUIStore();
+
+// --- ESTADO ---
 const email = ref("");
 const newPassword = ref("");
 const confirmPassword = ref("");
 const isLoading = ref(false);
 const showPassword = ref(false);
+const forgotError = ref(false);
 
-/**
- * Evaluación granular de requisitos de seguridad para feedback en la UI.
- */
-const hasLength = computed(() => newPassword.value.length >= 8);
-const hasUppercase = computed(() => /[A-Z]/.test(newPassword.value));
-const hasNumberOrSpecial = computed(() =>
-  /[0-9!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword.value),
+// Mismos requisitos que en el registro (longitud, mayúscula, número/símbolo).
+const { isEmailValid, hasLength, hasUppercase, hasNumberOrSpecial, isPasswordValid } =
+  useAuthValidators(email, newPassword);
+
+/** El form sólo se habilita cuando todo es correcto y las dos contraseñas coinciden. */
+const isFormValid = computed(
+  () =>
+    isEmailValid.value &&
+    isPasswordValid.value &&
+    confirmPassword.value.length > 0 &&
+    confirmPassword.value === newPassword.value,
 );
 
 /**
- * Lógica de validación global del formulario.
- * El botón se habilita únicamente si el formato de email es correcto,
- * se cumplen los criterios de seguridad y las contraseñas coinciden.
+ * Regla del segundo campo de contraseña: sólo da feedback visual.
+ * El botón ya está bloqueado cuando no coincide, así que aquí me limito
+ * a mostrar el mensaje inline bajo el input.
  */
-const isFormValid = computed(() => {
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  return (
-    emailRegex.test(email.value.trim()) &&
-    hasLength.value &&
-    hasUppercase.value &&
-    hasNumberOrSpecial.value &&
-    confirmPassword.value.length >= 8 &&
-    newPassword.value === confirmPassword.value
-  );
-});
+const confirmRules = [
+  (v) =>
+    !v ||
+    !newPassword.value ||
+    v === newPassword.value ||
+    "Las contraseñas no coinciden",
+];
+
+/** Shake visual de la tarjeta para acompañar los toasts de error. */
+function triggerShake() {
+  forgotError.value = true;
+  setTimeout(() => (forgotError.value = false), 500);
+}
 
 /**
- * Procesa el cambio de credenciales.
- * Si el usuario existe, actualiza el store y redirige mediante refresco forzado
- * para garantizar la limpieza de estados previos.
+ * Flujo del cambio:
+ *  1. Pequeño delay artificial para que el spinner se note.
+ *  2. Si el email no existe, shake + toast y corto.
+ *  3. Guardo la contraseña nueva (ya hasheada) vía AuthStore.
+ *  4. Mando al login con `?email=...` para que entre en el paso 2 directo.
  */
 async function handleSubmit() {
+  if (!isFormValid.value) return;
+
   isLoading.value = true;
   try {
-    const userExists = authStore.users.some((u) => u.email === email.value);
-    if (userExists) {
-      authStore.updatePassword(email.value, newPassword.value);
-      // Redirección con limpieza de caché/estado
-      window.location.href = "/login";
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const cleanEmail = email.value.toLowerCase().trim();
+    const userExists = authStore.users.some((u) => u.email === cleanEmail);
+
+    if (!userExists) {
+      triggerShake();
+      uiStore.notify("No encontramos ninguna cuenta con ese email", "error");
+      return;
     }
+
+    const updated = await authStore.updatePassword(cleanEmail, newPassword.value);
+    if (!updated) {
+      uiStore.notify(
+        "No pudimos cambiar la contraseña. Inténtalo de nuevo",
+        "error",
+      );
+      return;
+    }
+
+    uiStore.notify("Contraseña cambiada. Ya puedes iniciar sesión");
+    router.push({ path: "/login", query: { email: cleanEmail } });
   } finally {
     isLoading.value = false;
   }
@@ -175,7 +219,7 @@ async function handleSubmit() {
 </script>
 
 <style scoped>
-/* Contenedor principal: Centrado absoluto sobre fondo oscuro (Pitch Black) */
+/* Centrado en pantalla, sobre el fondo negro heredado de App.vue. */
 .forgot-page {
   min-height: 100vh;
   display: flex;
@@ -245,7 +289,8 @@ async function handleSubmit() {
   margin-bottom: 8px;
 }
 
-/* Estilización personalizada para inputs de Vuetify en modo oscuro sutil */
+/* Inputs en cristal: Vuetify por defecto pinta fondos blancos y no pega
+   con el tema oscuro; los fuerzo con :deep + !important. */
 .forgot-field-dark :deep(.v-field) {
   background: rgba(255, 255, 255, 0.05) !important;
   color: white !important;
@@ -286,5 +331,30 @@ async function handleSubmit() {
 
 .requirement.is-met :deep(.v-icon) {
   color: #1265ff !important;
+}
+
+/* Animación de feedback negativo (vibración) — reutiliza el patrón del login */
+.shake-error {
+  animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes shake {
+  10%,
+  90% {
+    transform: translate3d(-1px, 0, 0);
+  }
+  20%,
+  80% {
+    transform: translate3d(2px, 0, 0);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translate3d(-4px, 0, 0);
+  }
+  40%,
+  60% {
+    transform: translate3d(4px, 0, 0);
+  }
 }
 </style>

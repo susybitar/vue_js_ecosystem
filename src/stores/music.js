@@ -1,8 +1,11 @@
 /**
- * @file music.js (Store)
- * @description Gestión centralizada de la biblioteca musical y comunicación con la API.
- * Implementa el CRUD local con persistencia y las llamadas asíncronas a Deezer
- * dentro de Actions para cumplir con el Requisito Opcional 1 del programa.
+ * @file music.js
+ * @description Store principal de la app: biblioteca (artistas + álbumes) y
+ * búsquedas contra Deezer. Persisto todo en localStorage y emito las
+ * notificaciones desde aquí para no repetir la misma línea de feedback en
+ * cada vista. Las funciones que añaden datos aceptan `silent` porque en
+ * acciones compuestas (añadir un álbum desde Explorar también crea al
+ * artista) no quiero que salten dos toasts seguidos.
  */
 
 import { defineStore } from 'pinia'
@@ -13,7 +16,8 @@ import { useUIStore } from './ui'
 export const useMusicStore = defineStore('music', () => {
   const ui = useUIStore()
 
-  // --- ESTADO (STATE) ---
+  // --- ESTADO ---
+  /** Rehidrato desde localStorage; si el JSON está roto vuelvo a vacío. */
   const getInitialArtists = () => {
     try { return JSON.parse(localStorage.getItem('ms_artists')) || [] }
     catch { return [] }
@@ -29,24 +33,29 @@ export const useMusicStore = defineStore('music', () => {
   const loading = ref(false)
 
   // --- GETTERS ---
+  /** Devuelve los álbumes de un artista concreto (por su id local). */
   const getAlbumsByArtist = computed(() => {
     return (artistId) => albums.value.filter(album => album.artistId === artistId)
   })
 
-  // --- MÉTODOS PRIVADOS ---
+  /** Escribe artistas y álbumes a localStorage de golpe. */
   const syncStorage = () => {
     localStorage.setItem('ms_artists', JSON.stringify(artists.value))
     localStorage.setItem('ms_albums', JSON.stringify(albums.value))
   }
 
-  // --- ACCIONES CRUD ---
+  // --- CRUD DE BIBLIOTECA ---
 
   /**
-   * Crea un artista en la biblioteca local.
-   * Si no se proporciona género, se marca como "Independiente" y se deja que
-   * useLibraryActions lo enriquezca en segundo plano con el género real de Deezer.
+   * Añade un artista a la biblioteca local.
+   * @param {string} name
+   * @param {string|null} [genre=null] - Si no llega, cae a "Independiente".
+   * @param {string|null} [image=null] - URL de la foto del artista.
+   * @param {Object} [options]
+   * @param {boolean} [options.silent=false] - Si true, no dispara toast.
+   * @returns {Object} El artista recién creado (con su id local ya asignado).
    */
-  function addArtist(name, genre = null, image = null) {
+  function addArtist(name, genre = null, image = null, { silent = false } = {}) {
     const newArtist = {
       id: Date.now(),
       name: name.trim(),
@@ -55,12 +64,18 @@ export const useMusicStore = defineStore('music', () => {
     }
     artists.value.push(newArtist)
     syncStorage()
+
+    if (!silent) {
+      ui.notify(`Artista "${newArtist.name}" añadido a tu biblioteca`)
+    }
     return newArtist
   }
 
   /**
-   * Localiza un artista por nombre (case-insensitive). Utilizado por
-   * useLibraryActions para evitar duplicados al añadir desde Explorar.
+   * Busca un artista por nombre (case-insensitive). Lo uso desde
+   * useLibraryActions para no duplicar artistas al añadir desde Explorar.
+   * @param {string} name
+   * @returns {Object|undefined}
    */
   function findArtistByName(name) {
     if (!name) return undefined
@@ -71,6 +86,9 @@ export const useMusicStore = defineStore('music', () => {
 
   /**
    * Actualiza nombre y/o género de un artista existente.
+   * @param {number} id
+   * @param {string} name
+   * @param {string|null} [genre=null] - Sólo se reemplaza si llega algo válido.
    */
   function updateArtist(id, name, genre = null) {
     const artist = artists.value.find(a => a.id === id)
@@ -80,11 +98,16 @@ export const useMusicStore = defineStore('music', () => {
       artist.genre = genre.trim()
     }
     syncStorage()
+    ui.notify('Artista actualizado')
   }
 
   /**
-   * Mutador puntual para rellenar el género cuando llega del enriquecimiento
-   * asíncrono. Mutamos la propiedad in-place para preservar la reactividad.
+   * Muta el género de un artista en sitio (sin tocar el resto del objeto),
+   * para conservar la reactividad. Lo llamo desde el enriquecimiento
+   * asíncrono que trae el género real de Deezer; no notifica porque va
+   * en segundo plano.
+   * @param {number} id
+   * @param {string} genre
    */
   function setArtistGenre(id, genre) {
     if (!genre) return
@@ -94,18 +117,31 @@ export const useMusicStore = defineStore('music', () => {
     syncStorage()
   }
 
+  /**
+   * Elimina un artista y, en cascada, todos sus álbumes vinculados.
+   * Uso tipo "info" porque es una acción que el usuario confirma a propósito
+   * y no encaja ni como success ni como error.
+   * @param {number} id
+   */
   function deleteArtist(id) {
     artists.value = artists.value.filter(a => a.id !== id)
     albums.value = albums.value.filter(a => a.artistId !== id)
     syncStorage()
-    ui.notify('Artista eliminado', 'error')
+    ui.notify('Artista eliminado', 'info')
   }
 
   /**
-   * Añade un álbum asegurando que el año quede normalizado a YYYY aunque
-   * venga en formato ISO (YYYY-MM-DD) desde Deezer.
+   * Añade un álbum a la biblioteca. Normalizo el año a YYYY aunque venga
+   * en ISO (YYYY-MM-DD), que es como lo devuelve Deezer en algunos endpoints.
+   * @param {string} title
+   * @param {number} artistId
+   * @param {string|number|null} [year=null]
+   * @param {string|null} [cover=null]
+   * @param {Object} [options]
+   * @param {boolean} [options.silent=false]
+   * @returns {Object} El álbum recién creado.
    */
-  function addAlbum(title, artistId, year = null, cover = null) {
+  function addAlbum(title, artistId, year = null, cover = null, { silent = false } = {}) {
     const safeYear = year && String(year).includes('-')
       ? String(year).split('-')[0]
       : year
@@ -118,12 +154,19 @@ export const useMusicStore = defineStore('music', () => {
     }
     albums.value.push(newAlbum)
     syncStorage()
-    ui.notify(`Álbum "${title}" guardado`)
+
+    if (!silent) {
+      ui.notify(`Álbum "${newAlbum.title}" añadido a tu biblioteca`)
+    }
     return newAlbum
   }
 
   /**
-   * Actualiza los datos básicos de un álbum existente.
+   * Edita los datos básicos de un álbum existente.
+   * @param {number} id
+   * @param {string} title
+   * @param {number} artistId
+   * @param {string|number|null} [year=null]
    */
   function updateAlbum(id, title, artistId, year = null) {
     const album = albums.value.find(a => a.id === id)
@@ -132,11 +175,14 @@ export const useMusicStore = defineStore('music', () => {
     album.artistId = artistId
     if (year) album.year = year
     syncStorage()
+    ui.notify('Álbum actualizado')
   }
 
   /**
-   * Mutador puntual para rellenar el año cuando llega del enriquecimiento
-   * asíncrono tras añadir desde Explorar.
+   * Mismo caso que setArtistGenre: mutación puntual silenciosa cuando el
+   * año llega por detrás desde Deezer tras añadir desde Explorar.
+   * @param {number} id
+   * @param {number} year
    */
   function setAlbumYear(id, year) {
     if (!year) return
@@ -146,17 +192,24 @@ export const useMusicStore = defineStore('music', () => {
     syncStorage()
   }
 
+  /**
+   * Borra un álbum de la biblioteca.
+   * @param {number} id
+   */
   function deleteAlbum(id) {
     albums.value = albums.value.filter(a => a.id !== id)
     syncStorage()
-    ui.notify('Álbum eliminado', 'error')
+    ui.notify('Álbum eliminado', 'info')
   }
 
-  // --- ACCIONES API ---
+  // --- DEEZER ---
 
   /**
-   * Busca en Deezer. Usa el proxy '/api/deezer' definido en vite.config.js
-   * para evitar errores de CORS en desarrollo.
+   * Busca en Deezer por tipo (artist/album/track) y deja el resultado en
+   * `apiResults`. Paso por el proxy `/api/deezer` definido en vite.config.js
+   * para saltarme el CORS en desarrollo.
+   * @param {'artist'|'album'|'track'} type
+   * @param {string} query
    */
   async function searchDeezer(type, query) {
     if (!query?.trim()) return
@@ -167,15 +220,18 @@ export const useMusicStore = defineStore('music', () => {
       })
       apiResults.value = res.data.data || []
     } catch {
-      ui.notify('Error en la búsqueda', 'error')
+      ui.notify('No pudimos completar la búsqueda. Revisa tu conexión', 'error')
     } finally {
       loading.value = false
     }
   }
 
   /**
-   * Recupera las tendencias del tipo indicado (artist, album, track).
-   * Mapeo interno porque el endpoint de Deezer usa plurales.
+   * Trae las tendencias del tipo pedido. El endpoint de chart de Deezer
+   * usa plurales, así que hago un mapeo interno para poder llamar con
+   * singulares desde la app.
+   * @param {'artist'|'album'|'track'} [type='album']
+   * @returns {Promise<Array>}
    */
   async function fetchTrending(type = 'album') {
     loading.value = true

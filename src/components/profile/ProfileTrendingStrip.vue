@@ -29,13 +29,11 @@
 <script setup>
 /**
  * @file ProfileTrendingStrip.vue
- * @description Listado horizontal de éxitos globales.
- * Se alimenta de los charts de Deezer para mostrar qué es lo que más suena.
- */
-
-/**
- * Propiedades del componente
- * @param {Array} items - Colección de álbumes o pistas tendencia obtenidos de la API
+ * @description Strip horizontal de tendencias globales. Lo uso en el
+ * dashboard del perfil como guiño "lo que más suena fuera de tu biblioteca".
+ * Los items los pide el padre a Deezer y me los pasa ya filtrados.
+ *
+ * @prop {Array} items - Álbumes/charts de Deezer a pintar en la tira.
  */
 defineProps({
   items: { type: Array, required: true },
@@ -74,7 +72,7 @@ defineProps({
   color: #5a9aff;
 }
 
-/* Scroll horizontal con el indicador de scroll oculto para un look más limpio */
+/* Overflow-x con la scrollbar oculta para que parezca un carrusel. */
 .trending-scroll {
   display: flex;
   gap: 20px;
@@ -92,7 +90,7 @@ defineProps({
   cursor: default;
 }
 
-/* Efecto de elevación y escalado suave al pasar el ratón por la carátula */
+/* Portada cuadrada con sombra. Al hover, sube ligeramente + intensifica sombra. */
 .card-cover {
   position: relative;
   width: 100%;

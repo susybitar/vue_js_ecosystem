@@ -93,8 +93,12 @@
 <script setup>
 /**
  * @file ExploreView.vue
- * @description Vista de exploración musical. Muestra tendencias por defecto
- * y resultados cuando el usuario realiza una búsqueda.
+ * @description Buscador global. Mientras el input está vacío, muestro
+ * tendencias de Deezer según la pestaña activa (artistas / álbumes / canciones).
+ * En cuanto el usuario escribe y dispara la búsqueda, paso a enseñar los
+ * resultados reales. El cambio de pestaña re-dispara la petición actual,
+ * para que la UI no quede enseñando resultados de "álbumes" cuando estás en
+ * "artistas".
  */
 
 import { ref, computed, watch, onMounted } from "vue";
@@ -118,14 +122,16 @@ const {
 
 // --- ESTADO ---
 const query = ref("");
-const searchType = ref("artist");
+const searchType = ref("artist"); // "artist" | "album" | "track"
 const trending = ref([]);
 const loadingTrending = ref(false);
 const error = ref(null);
 
 // --- COMPUTED ---
+/** Hay texto en el input → modo "resultados de búsqueda". Si no, modo "tendencias". */
 const isSearching = computed(() => !!query.value.trim());
 
+/** Texto "N artistas encontrados" / "N álbumes encontrados" / etc. */
 const resultsLabel = computed(() =>
   searchType.value === "artist"
     ? "artistas encontrados"
@@ -134,6 +140,7 @@ const resultsLabel = computed(() =>
       : "canciones encontradas",
 );
 
+/** Título que sale sobre la grid cuando estamos en modo tendencias. */
 const trendingLabel = computed(() =>
   searchType.value === "artist"
     ? "Artistas en tendencia"
@@ -142,6 +149,7 @@ const trendingLabel = computed(() =>
       : "Canciones del momento",
 );
 
+/** Placeholder del buscador, adaptado a la pestaña actual. */
 const searchBarPlaceholder = computed(
   () =>
     `Busca un ${
@@ -154,6 +162,11 @@ const searchBarPlaceholder = computed(
 );
 
 // --- LIBRERÍA ---
+/**
+ * ¿El item ya está en la biblioteca del usuario? Sirve para pintar "Añadido"
+ * en vez del botón de añadir. Para canciones devuelvo siempre `false` porque
+ * los tracks no los guardo localmente.
+ */
 function isItemInLibrary(item) {
   if (searchType.value === "artist") return isArtistInLibrary(item.name);
   if (searchType.value === "album")
@@ -161,11 +174,18 @@ function isItemInLibrary(item) {
   return false;
 }
 
+/** Añade el item a la biblioteca (sólo artistas y álbumes; tracks no aplican). */
 function addToLibrary(item) {
   if (searchType.value === "artist") addArtistToLibrary(item);
   if (searchType.value === "album") addAlbumToLibrary(item);
 }
 
+/**
+ * "Navegación rápida" dentro del buscador: al seleccionar un artista, paso
+ * automáticamente a buscar sus álbumes; y al seleccionar un álbum, a sus
+ * tracks. Es un atajo para no obligar al usuario a cambiar la pestaña +
+ * escribir el nombre a mano.
+ */
 function handleQuickNav(item) {
   if (searchType.value === "artist") {
     searchType.value = "album";
@@ -177,12 +197,17 @@ function handleQuickNav(item) {
 }
 
 // --- API ---
+/** Dispara la búsqueda en la API con el tipo y el texto actuales. */
 async function runSearch() {
   if (!query.value.trim()) return;
   error.value = null;
   await musicStore.searchDeezer(searchType.value, query.value);
 }
 
+/**
+ * Carga las tendencias para la pestaña actual. Se llama al montar y cada vez
+ * que el usuario vacía el input (vuelve al "modo portada").
+ */
 async function loadTrendingData() {
   loadingTrending.value = true;
   try {
@@ -195,10 +220,12 @@ async function loadTrendingData() {
 }
 
 // --- WATCHERS ---
-// Cambio de pestaña: si hay búsqueda activa, re-buscamos en la nueva categoría;
-// si no, recargamos las tendencias de esa categoría. No se observa 'query'
-// porque emitiría una llamada por cada tecla; la búsqueda se dispara por Enter
-// o clic en el botón vía el evento @search.
+/**
+ * Cambio de pestaña: si hay búsqueda activa, re-busco en la nueva categoría;
+ * si no, recargo las tendencias de esa categoría. No observo `query` aquí a
+ * propósito — sería una petición por cada tecla. La búsqueda se dispara por
+ * Enter o por el botón, vía el evento `@search` del ExploreSearchBar.
+ */
 watch(searchType, async () => {
   if (query.value.trim()) {
     await runSearch();
@@ -207,7 +234,7 @@ watch(searchType, async () => {
   }
 });
 
-// Al vaciar el input volvemos a las tendencias y limpiamos resultados previos.
+/** Al vaciar el input vuelvo a tendencias y limpio los resultados previos. */
 watch(query, (val) => {
   if (!val.trim()) {
     musicStore.apiResults = [];

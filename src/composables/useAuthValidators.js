@@ -1,22 +1,30 @@
 /**
  * @file useAuthValidators.js
- * @description Composable para centralizar las validaciones de los formularios de acceso.
- * Mantiene las vistas limpias y reutiliza la lógica de control de seguridad.
+ * @description Validaciones de los formularios de acceso (email + contraseña).
+ * Lo saqué a composable porque las reutilizo entre Login y Register, y así
+ * las vistas no cargan con la misma regex repetida. Lo paso a `ref` para
+ * que las comprobaciones sean reactivas sin tener que pasar primitivas.
  */
 
 import { computed } from 'vue';
 
 /**
- * Hook para validar credenciales de usuario (email y contraseña).
- * @param {Ref} [email=null] - Referencia reactiva con el correo del usuario.
- * @param {Ref} [password=null] - Referencia reactiva con la contraseña del usuario.
- * @returns {Object} Banderas de validación individuales y estados globales de validez.
+ * @param {import('vue').Ref<string>} [email=null] - Ref con el correo del usuario.
+ * @param {import('vue').Ref<string>} [password=null] - Ref con la contraseña.
+ * @returns {{
+ *   isEmailValid: import('vue').ComputedRef<boolean>,
+ *   hasLength: import('vue').ComputedRef<boolean>,
+ *   hasUppercase: import('vue').ComputedRef<boolean>,
+ *   hasNumberOrSpecial: import('vue').ComputedRef<boolean>,
+ *   isPasswordValid: import('vue').ComputedRef<boolean>
+ * }}
  */
 export function useAuthValidators(email = null, password = null) {
-  
+
   /**
-   * Valida el formato del email mediante una expresión regular estándar.
-   * Aplicamos trim() para ignorar espacios en blanco accidentales al principio o final.
+   * Formato de email válido. Aplico trim() porque algunos teclados móviles
+   * meten un espacio después del autocompletado. No pretendo cubrir todos
+   * los RFC raros, sólo el 99% real.
    */
   const isEmailValid = computed(() => {
     if (!email || !email.value) return false;
@@ -24,23 +32,21 @@ export function useAuthValidators(email = null, password = null) {
     return emailRegex.test(email.value.trim());
   });
 
-  // --- Requisitos de seguridad para la contraseña ---
-  
-  /** Verifica que la contraseña tenga al menos 8 caracteres */
+  // --- Requisitos de la contraseña ---
+
+  /** Al menos 8 caracteres. */
   const hasLength = computed(() => (password?.value?.length || 0) >= 8);
-  
-  /** Comprueba si hay al menos una letra mayúscula */
+
+  /** Al menos una mayúscula. */
   const hasUppercase = computed(() => /[A-Z]/.test(password?.value || ''));
-  
-  /** Busca la presencia de un número o un carácter especial */
+
+  /** Al menos un número o un carácter especial. */
   const hasNumberOrSpecial = computed(() => /[\d\W]/.test(password?.value || ''));
 
-  /**
-   * El password global se da por bueno solo si pasa todos los filtros individuales.
-   */
-  const isPasswordValid = computed(() => 
-    hasLength.value && 
-    hasUppercase.value && 
+  /** La contraseña sólo pasa si cumple los tres requisitos anteriores a la vez. */
+  const isPasswordValid = computed(() =>
+    hasLength.value &&
+    hasUppercase.value &&
     hasNumberOrSpecial.value
   );
 

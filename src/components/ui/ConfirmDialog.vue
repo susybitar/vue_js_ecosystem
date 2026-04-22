@@ -37,18 +37,20 @@
 <script setup>
 /**
  * @file ConfirmDialog.vue
- * @description Modal genérico para confirmaciones de seguridad. Se utiliza principalmente para evitar borrados accidentales de artistas o álbumes.
- */
-
-/**
- * Propiedades del diálogo
- * @param {boolean} modelValue - Controla si el modal está a la vista (v-model)
- * @param {string} [title="¿Estás seguro?"] - Encabezado del mensaje
- * @param {string} message - Texto descriptivo del peligro de la acción
- * @param {string} [cancelLabel="Cancelar"] - Etiqueta del botón de escape
- * @param {string} [confirmLabel="Confirmar"] - Etiqueta de la acción principal
- * @param {string} [tone="error"] - Color del botón de acción (error, info, success...)
- * @param {string} [icon="mdi-alert-circle"] - Icono que acompaña al título
+ * @description Modal de confirmación reutilizable. Lo uso sobre todo para
+ * borrados destructivos (artista / álbum), pero le dejo props suficientes
+ * (`tone`, `icon`, labels) como para poder reciclarlo en otros casos si
+ * hiciera falta.
+ *
+ * @prop {boolean} modelValue - v-model: abre/cierra el modal.
+ * @prop {string} [title="¿Estás seguro?"] - Título del modal.
+ * @prop {string} message - Explicación corta de lo que va a pasar si confirma.
+ * @prop {string} [cancelLabel="Cancelar"] - Texto del botón secundario.
+ * @prop {string} [confirmLabel="Confirmar"] - Texto del botón principal.
+ * @prop {string} [tone="error"] - Color de Vuetify para el CTA (error / warning / info).
+ * @prop {string} [icon="mdi-alert-circle"] - Icono junto al título.
+ * @fires update:modelValue - Cierre del modal.
+ * @fires confirm - Usuario pulsó "Confirmar".
  */
 defineProps({
   modelValue: { type: Boolean, required: true },
@@ -63,8 +65,8 @@ defineProps({
 const emit = defineEmits(["update:modelValue", "confirm"]);
 
 /**
- * Ejecuta la confirmación.
- * Avisamos al componente padre de que el usuario ha aceptado y cerramos el modal automáticamente.
+ * Acepta la acción: aviso al padre con `confirm` y cierro el modal. El padre
+ * se encarga de la acción real (borrar, etc.); yo sólo me ocupo del UI.
  */
 function confirm() {
   emit("confirm");
@@ -73,7 +75,7 @@ function confirm() {
 </script>
 
 <style scoped>
-/* Borde fino para mantener la estética Pitch Black sin que el modal se pierda en el fondo negro */
+/* Borde fino para que el modal no se confunda con el fondo negro. */
 .border-subtle {
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }

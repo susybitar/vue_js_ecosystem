@@ -13,6 +13,7 @@
       autocomplete="email"
       autofocus
       :rules="rules"
+      validate-on="blur lazy"
     />
   </div>
 </template>
@@ -20,28 +21,22 @@
 <script setup>
 /**
  * @file StepEmail.vue
- * @description Primer paso del registro. Captura y enlaza el email del usuario usando v-model.
- * Las reglas inline dan feedback al usuario mientras escribe; la validación
- * "fuerte" (habilitar el botón Continuar) sigue viviendo en RegisterView
- * vía useAuthValidators.
- */
-
-/**
- * Valor actual del input (v-model)
- * @param {string} modelValue - Email escrito por el usuario
+ * @description Paso 1 del registro: email. El v-model conecta con la vista
+ * padre (RegisterView), que es la que decide cuándo se puede avanzar
+ * (`isStepValid`) con los validadores compartidos. Aquí sólo pinto el campo
+ * y las reglas inline, que son para que el usuario entienda qué falta — no
+ * bloquean el avance.
+ *
+ * @prop {string} modelValue - Email actual (v-model).
+ * @fires update:model-value - Nuevo valor escrito.
  */
 defineProps(["modelValue"]);
-
-/**
- * Avisa al componente padre cuando el usuario escribe algo
- * @fires update:model-value - Envía el nuevo texto del input
- */
 defineEmits(["update:model-value"]);
 
 /**
- * Reglas de feedback inline.
- * No bloquean el avance (ya lo hace isStepValid en el padre), pero muestran
- * al usuario por qué su email no vale.
+ * Reglas del input. Con `validate-on="blur lazy"` los mensajes sólo aparecen
+ * cuando el usuario ya escribió algo y salió del campo — así el input no se
+ * pinta en rojo al montar la vista.
  */
 const rules = [
   (v) => !!v?.trim() || "Necesitamos tu email para continuar",

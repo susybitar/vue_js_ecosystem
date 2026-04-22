@@ -8,13 +8,15 @@
 <script setup>
 /**
  * @file TheFooter.vue
- * @description Pie de página minimalista para vistas internas. Muestra el logotipo en marca de agua y el copyright de forma discreta.
+ * @description Pie que uso al final de las vistas internas (Perfil, Álbumes,
+ * Artistas, Explorar). Logo en blanco a media tinta + copyright, nada más —
+ * no quiero que compita con el contenido.
  */
 import logo from "@/assets/img/logotipo/logo_music_space.svg";
 </script>
 
 <style scoped>
-/* Logotipo con filtro invertido y opacidad baja para no distraer del contenido principal */
+/* Logo blanco al 20% — que se note pero sin llamar la atención. */
 .footer-logo-fixed {
   filter: brightness(0) invert(1);
   width: 90px !important;
@@ -22,7 +24,7 @@ import logo from "@/assets/img/logotipo/logo_music_space.svg";
   opacity: 0.2;
 }
 
-/* Texto legal con espaciado amplio para mantener la estética premium y minimalista */
+/* Copyright pequeño y espaciado (tracking ancho) para que respire. */
 .legal-text {
   font-family: "Montserrat", sans-serif;
   font-size: 10px;

@@ -40,6 +40,7 @@
                     (v) => !!v || 'Email requerido',
                     (v) => /.+@.+\..+/.test(v) || 'Email no válido',
                   ]"
+                  validate-on="blur lazy"
                   class="login-field-dark"
                   autofocus
                 />
@@ -72,6 +73,7 @@
                   (v) => !!v || 'Contraseña requerida',
                   (v) => v.length >= 6 || 'Mínimo 6 caracteres',
                 ]"
+                validate-on="blur lazy"
                 :append-inner-icon="showPassword ? 'mdi-eye-off' : 'mdi-eye'"
                 @click:append-inner="showPassword = !showPassword"
                 class="login-field-dark"
@@ -117,8 +119,11 @@
 <script setup>
 /**
  * @file LoginView.vue
- * @description Vista de acceso en dos pasos. Primero verifica la existencia del usuario
- * y luego solicita la contraseña. Implementa lógica de "Recordarme" y animaciones de error.
+ * @description Vista de login en dos pasos (email y luego contraseña).
+ * A propósito avanzo al paso 2 SIN confirmar si el email existe: si lo
+ * confirmase, cualquiera podría usar este formulario para saber qué
+ * emails tienen cuenta. Incluyo "Recordarme" y un shake animado cuando
+ * las credenciales fallan.
  */
 
 import { ref, onMounted } from "vue";
@@ -142,7 +147,10 @@ const rememberMe = ref(false);
 const loginError = ref(false);
 
 /**
- * Al montar, comprobamos si venimos de un registro exitoso o si hay un correo recordado.
+ * Al entrar miro dos cosas:
+ *  - Si vengo del registro (query `email`) → salto directo al paso 2.
+ *  - Si hay un email recordado en localStorage → lo relleno y marco la
+ *    casilla de "Recordarme".
  */
 onMounted(() => {
   const emailParam = route.query.email;
@@ -159,17 +167,17 @@ onMounted(() => {
 });
 
 /**
- * Maneja el flujo de login.
- * Paso 1: Valida si el usuario existe (si no, redirige a registro).
- * Paso 2: Ejecuta el login real contra el store.
+ * Submit del formulario. En el paso 1 sólo avanzo al paso 2 (guardando el
+ * email si "Recordarme" está marcado). En el paso 2 llamo al store para
+ * validar credenciales de verdad.
  */
 async function handleSubmit() {
   const { valid } = await loginForm.value.validate();
   if (!valid) return;
 
   if (step.value === 1) {
-    // Avanzamos siempre al paso de contraseña. No confirmamos si el email
-    // existe: hacerlo permitiría enumerar cuentas (OWASP ASVS).
+    // No compruebo aquí si el email existe: si lo hiciese, este form
+    // serviría para enumerar qué cuentas hay registradas.
     if (rememberMe.value)
       localStorage.setItem("ms_remember_email", email.value);
     step.value = 2;
@@ -180,14 +188,14 @@ async function handleSubmit() {
       router.push("/profile");
     } else {
       loginError.value = true;
-      // Mensaje unificado: no revelamos si el email existe o si la contraseña falla.
+      // Mensaje único: no digo si falla el email o la contraseña.
       uiStore.notify("Email o contraseña incorrectos", "error");
       setTimeout(() => (loginError.value = false), 500);
     }
   }
 }
 
-/** Resetea el flujo al paso de email */
+/** Vuelve al paso 1 y limpia la contraseña escrita. */
 function goBack() {
   step.value = 1;
   password.value = "";

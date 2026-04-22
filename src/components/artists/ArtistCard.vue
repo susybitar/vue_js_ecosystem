@@ -44,23 +44,20 @@
 <script setup>
 /**
  * @file ArtistCard.vue
- * @description Tarjeta visual para listar artistas. Muestra su foto, nombre y género, y revela los controles de edición al pasar el ratón.
- */
-
-/**
- * Datos que inyectamos en la tarjeta
- * @param {Object} artist - Objeto con la info del artista (nombre, imagen, género, etc.)
+ * @description Tarjeta de artista. Foto cuadrada + nombre + género, con los
+ * botones de editar/borrar que aparecen al hacer hover encima. Si no hay
+ * imagen, tiro de un placeholder de Unsplash para que la tarjeta no se vea
+ * rota.
+ *
+ * @prop {Object} artist - Artista con `name`, `image`, `genre`, etc.
+ * @fires click - Click en la tarjeta.
+ * @fires edit - Click en el lápiz. Paso el artista como payload.
+ * @fires delete - Click en la papelera. Paso el artista como payload.
  */
 defineProps({
   artist: { type: Object, required: true },
 });
 
-/**
- * Eventos que lanzamos al componente padre
- * @fires click - Al pinchar en cualquier parte de la tarjeta
- * @fires edit - Al pulsar el botón del lápiz. Pasa el objeto del artista
- * @fires delete - Al pulsar la papelera. Pasa el objeto del artista
- */
 defineEmits(["click", "edit", "delete"]);
 </script>
 

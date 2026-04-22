@@ -24,13 +24,12 @@
 <script setup>
 /**
  * @file HowItWorksSection.vue
- * @description Sección informativa que explica el flujo de usuario. Utiliza un diseño de cuadrícula con tarjetas tipo glassmorphism sobre fondo negro.
+ * @description Sección "Cómo funciona" de la landing: tres tarjetas glass
+ * con los pasos del flujo de usuario. Todo es estático; si mañana añado un
+ * paso, basta con meterlo en `steps` y el grid se adapta solo.
  */
 
-/**
- * Listado de pasos del proceso.
- * Define la narrativa de la landing: importación, gestión y uso final.
- */
+/** Pasos del flujo. La numeración 01/02/03 la añade el template. */
 const steps = [
   {
     title: "Sincroniza tu catálogo",
@@ -48,9 +47,9 @@ const steps = [
 </script>
 
 <style scoped>
-/* ─── FONDO PITCH BLACK ABSOLUTO ─── */
+/* Fondo negro puro. El !important es para ganarle al tema global de Vuetify. */
 .how-it-works-section {
-  background: #000000 !important; /* Forzamos el negro puro */
+  background: #000000 !important;
   padding: 120px 0;
   color: #ffffff;
   position: relative;
@@ -80,7 +79,8 @@ const steps = [
   letter-spacing: -0.03em;
 }
 
-/* ─── GRID DE TARJETAS GLASSMORPHISM ─── */
+/* Grid responsive: auto-fit con minmax hace que las tarjetas bajen a una
+   columna en móvil sin tocar nada en JS. */
 .steps-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -88,7 +88,7 @@ const steps = [
 }
 
 .step-card {
-  background: rgba(255, 255, 255, 0.03); /* Cristal muy sutil */
+  background: rgba(255, 255, 255, 0.03);
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 24px;
   padding: 48px 32px;
@@ -122,7 +122,7 @@ const steps = [
 .step-desc {
   font-family: "Roboto", sans-serif;
   font-size: 1rem;
-  color: rgba(255, 255, 255, 0.5); /* Texto tenue para buen contraste */
+  color: rgba(255, 255, 255, 0.5);
   line-height: 1.6;
 }
 </style>

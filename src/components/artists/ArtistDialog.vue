@@ -64,8 +64,14 @@
 <script setup>
 /**
  * @file ArtistDialog.vue
- * @description Modal para la creación y edición de artistas con validación
- * de datos integrada en el sistema de diseño FutureSpace.
+ * @description Modal crear/editar artista. Mismo patrón que el AlbumDialog:
+ * si el padre me pasa un `artist`, edito; si no, creo. Trabajo sobre una copia
+ * local y sólo emito al padre al pulsar Guardar.
+ *
+ * @prop {boolean} modelValue - v-model: abre/cierra el modal.
+ * @prop {Object} [artist=null] - Artista a editar. Si es null → modo creación.
+ * @fires update:modelValue - Cierre del modal.
+ * @fires save - Payload listo para crear/actualizar en el store.
  */
 
 import { reactive, watch, computed, ref } from "vue";
@@ -80,6 +86,11 @@ const emit = defineEmits(["update:modelValue", "save"]);
 const musicStore = useMusicStore();
 const isValid = ref(false);
 
+/**
+ * Sugerencias del combobox de género. Es un `v-combobox` a propósito: el
+ * usuario puede elegir una de éstas o escribir la suya propia (por si su
+ * artista no encaja en ninguno de los géneros típicos).
+ */
 const genreOptions = ref([
   "Pop",
   "Rock",
@@ -100,9 +111,9 @@ const isEditing = computed(() => !!props.artist);
 const form = reactive({ name: "", genre: "" });
 
 /**
- * Reglas del nombre. Bloqueamos duplicados case-insensitive contra la
- * biblioteca local; al editar permitimos conservar el mismo nombre del
- * artista que se está modificando.
+ * Reglas del nombre. Bloqueo duplicados contra la biblioteca (case-insensitive);
+ * en edición ignoro el propio artista para que se pueda re-guardar sin tocar
+ * el nombre.
  */
 const nameRules = computed(() => [
   (v) => !!v || "El nombre es obligatorio",
@@ -121,6 +132,7 @@ const nameRules = computed(() => [
   },
 ]);
 
+/** Al abrir el modal, relleno desde `props.artist` o reseteo a vacío. */
 watch(
   () => props.modelValue,
   (isOpen) => {
@@ -135,6 +147,11 @@ watch(
   },
 );
 
+/**
+ * Submit. El combobox devuelve string cuando el usuario escribe, pero también
+ * puede devolver un objeto si alguna vez configuro `item-title`/`item-value`;
+ * por eso normalizo aquí el tipo antes de emitir.
+ */
 function submit() {
   if (!isValid.value) return;
 

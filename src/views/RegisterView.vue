@@ -28,7 +28,7 @@
           class="mb-12"
         ></v-progress-linear>
 
-        <v-form @submit.prevent="handleNext">
+        <v-form ref="registerForm" @submit.prevent="handleNext">
           <v-window v-model="step" :touch="false">
             <v-window-item :value="1">
               <StepEmail v-model="email" />
@@ -86,8 +86,11 @@
 <script setup>
 /**
  * @file RegisterView.vue
- * @description Flujo de registro secuencial en 3 pasos: Email, Password y Perfil.
- * Integra validaciones en tiempo real y persistencia optimista en el store de autenticación.
+ * @description Registro en 3 pasos (email → contraseña → perfil). Cada
+ * paso es un componente aparte (StepEmail / StepPassword / StepProfile)
+ * y esta vista se queda con el estado compartido y el flujo de avance.
+ * Al terminar, creo el usuario y le meto sesión directa para que entre
+ * al confirm sin volver a loguearse.
  */
 
 import { ref, computed } from "vue";
@@ -105,7 +108,7 @@ const router = useRouter();
 const authStore = useAuthStore();
 const uiStore = useUIStore();
 
-// --- ESTADO REACTIVO ---
+// --- ESTADO ---
 const step = ref(1);
 const email = ref("");
 const password = ref("");
@@ -114,7 +117,10 @@ const acceptTerms = ref(false);
 const showPassword = ref(false);
 const registerError = ref(false);
 
-// --- LÓGICA DE VALIDACIÓN COMPARTIDA ---
+/** Ref del v-form para poder llamar a validate() en el paso 3. */
+const registerForm = ref(null);
+
+// Validaciones compartidas con el login.
 const {
   isEmailValid,
   hasLength,
@@ -123,53 +129,77 @@ const {
   isPasswordValid,
 } = useAuthValidators(email, password);
 
-/** Títulos descriptivos para cada fase del registro */
+/** Título grande de la vista según el paso en el que esté. */
 const currentTitle = computed(() => {
   const titulos = ["Tu email", "Tu contraseña", "Tu perfil"];
   return titulos[step.value - 1];
 });
 
-/** Validación local por paso para habilitar/deshabilitar el botón de progreso */
+/**
+ * Cuándo habilitar el botón del paso:
+ *  - Pasos 1 y 2: sólo si el formato es correcto (así no mando cosas al
+ *    store con un email malformado o una contraseña débil).
+ *  - Paso 3: siempre activo. Quiero que el usuario pueda darle a
+ *    "Finalizar registro" aunque falte algo, y que sea Vuetify quien le
+ *    pinte el error bajo el campo concreto que hay que arreglar. Así no
+ *    sale el mensaje en rojo al montar la vista, sólo al intentar enviar.
+ */
 const isStepValid = computed(() => {
   if (step.value === 1) return isEmailValid.value;
   if (step.value === 2) return isPasswordValid.value;
-  return name.value.trim().length >= 2 && acceptTerms.value;
+  return true;
 });
 
 /**
- * Gestiona el avance de pasos o la finalización del registro.
- * Incluye verificación de duplicados de email en el primer paso.
+ * Submit del paso actual. Según el paso:
+ *  1. Compruebo que el email no esté ya cogido; si lo está, shake + toast.
+ *  2. Paso simple: avanzo.
+ *  3. Valido el formulario, registro al usuario y hago login en el acto
+ *     (el await del login es necesario para que RegisterConfirm ya tenga
+ *     `currentUser` al montarse).
  */
-function handleNext() {
+async function handleNext() {
   if (step.value === 1) {
     const existe = authStore.users.some(
       (u) => u.email === email.value.toLowerCase().trim(),
     );
     if (existe) {
-      // Feedback de error visual y por notificación
       registerError.value = true;
       uiStore.notify("Este correo ya está registrado", "error");
       setTimeout(() => (registerError.value = false), 500);
     } else {
       step.value++;
     }
-  } else if (step.value === 2) {
-    step.value++;
-  } else {
-    // Proceso de creación de cuenta y login automático
-    authStore.register({
-      name: name.value,
-      email: email.value,
-      password: password.value,
-    });
-    authStore.login(email.value, password.value);
-
-    uiStore.notify("Cuenta creada con éxito");
-    router.push({ path: "/register-confirm", query: { name: name.value } });
+    return;
   }
+
+  if (step.value === 2) {
+    step.value++;
+    return;
+  }
+
+  // Paso 3: dispara las reglas del paso (nombre + checkbox de términos).
+  const { valid } = await registerForm.value.validate();
+  if (!valid) return;
+
+  const registered = await authStore.register({
+    name: name.value,
+    email: email.value,
+    password: password.value,
+  });
+
+  if (!registered) {
+    uiStore.notify("No pudimos crear tu cuenta. Inténtalo de nuevo", "error");
+    return;
+  }
+
+  await authStore.login(email.value, password.value);
+
+  uiStore.notify("Cuenta creada con éxito");
+  router.push({ path: "/register-confirm", query: { name: name.value } });
 }
 
-/** Retrocede al paso anterior */
+/** Vuelve al paso anterior sin tocar los datos ya escritos. */
 function prevStep() {
   if (step.value > 1) step.value--;
 }

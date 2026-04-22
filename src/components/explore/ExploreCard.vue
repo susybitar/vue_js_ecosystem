@@ -41,18 +41,24 @@
 <script setup>
 /**
  * @file ExploreCard.vue
- * @description Tarjeta multiuso para la sección de exploración. Adapta su diseño y botones según si muestra un artista, un álbum o una canción.
+ * @description Tarjeta del Explorer. Sirve para artistas, álbumes y canciones;
+ * adapta qué botón overlay enseña según `type`: para artista/álbum, botón
+ * "añadir a biblioteca"; para track, botón "play" del preview de 30s. El JSON
+ * de Deezer tiene claves distintas según el tipo (`name` vs `title`,
+ * `picture_*` vs `cover_*`), así que normalizo cover/title/detail en computeds
+ * para que el template no tenga condicionales.
+ *
+ * @prop {Object} item - Payload crudo de la API de Deezer.
+ * @prop {"artist"|"album"|"track"} type - Qué estoy pintando.
+ * @prop {boolean} [inLibrary=false] - true → el usuario ya lo tiene guardado.
+ * @prop {boolean} [playing=false] - true → el preview de audio está sonando.
+ * @fires add - Guardar en biblioteca (artista o álbum; no aplica a tracks).
+ * @fires preview - Play/pause del preview (sólo tracks).
+ * @fires select - Click en la tarjeta (lo uso para la navegación rápida).
  */
 
 import { computed } from "vue";
 
-/**
- * Datos y estado visual que recibe la tarjeta
- * @param {Object} item - Datos crudos devueltos por la API (Deezer)
- * @param {string} type - Define el tipo de contenido ('artist', 'album', 'track')
- * @param {boolean} [inLibrary=false] - Marca si el usuario ya lo tiene guardado
- * @param {boolean} [playing=false] - Indica si el fragmento de audio está sonando en este momento
- */
 const props = defineProps({
   item: { type: Object, required: true },
   type: { type: String, required: true },
@@ -60,17 +66,12 @@ const props = defineProps({
   playing: { type: Boolean, default: false },
 });
 
-/**
- * Acciones del usuario
- * @fires add - Pide guardar el álbum o artista en la biblioteca
- * @fires preview - Alterna el play/pausa del fragmento de audio (solo pistas)
- * @fires select - Navega al detalle del elemento al pinchar la tarjeta
- */
 defineEmits(["add", "preview", "select"]);
 
 /**
- * Extrae la imagen en la mejor calidad posible.
- * La estructura del JSON cambia dependiendo de si pedimos un artista, álbum o canción.
+ * Imagen en la mejor resolución disponible. Deezer la sirve en 3 tamaños;
+ * prefiero `_big` y si no tiro de `_medium`. Para tracks la imagen cuelga
+ * del álbum, no del track directamente.
  */
 const cover = computed(() => {
   if (props.type === "artist")
@@ -80,25 +81,22 @@ const cover = computed(() => {
   return props.item.album?.cover_big || props.item.album?.cover_medium;
 });
 
-/**
- * Normaliza el nombre principal. Los artistas usan la clave 'name', el resto usa 'title'.
- */
+/** Título principal. Artista → `name`, resto → `title`. */
 const title = computed(() => {
   if (props.type === "artist") return props.item.name;
   return props.item.title;
 });
 
-/**
- * Saca solo el año (YYYY) de la fecha completa (YYYY-MM-DD) que manda la API.
- */
+/** Saca sólo el año del `release_date` (formato YYYY-MM-DD de Deezer). */
 const releaseYear = computed(() => {
   if (!props.item.release_date) return null;
   return Number(props.item.release_date.slice(0, 4)) || null;
 });
 
 /**
- * Monta el subtítulo descriptivo uniendo los datos disponibles de forma dinámica.
- * Filtra los campos nulos (Boolean) para no dejar viñetas (·) sueltas en el texto.
+ * Subtítulo bajo el título. Junta los datos que haya disponibles con "·"
+ * entre medias. Filtro los `falsy` antes del join para no dejar separadores
+ * sueltos cuando a un álbum le falta el año o a un track le falta el álbum.
  */
 const detail = computed(() => {
   if (props.type === "artist") {

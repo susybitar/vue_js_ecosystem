@@ -74,15 +74,16 @@
 <script setup>
 /**
  * @file HomeView.vue
- * @description Landing page principal del proyecto MusicSpace.
- * Orquesta los componentes visuales clave y gestiona el estado de acceso para adaptar los CTAs.
+ * @description Landing de la app. Es un montaje de secciones (Hero + ArtistRibbon
+ * + HowItWorks + Footer) y poco más; la única lógica propia es cambiar los CTAs
+ * del hero y de la navbar según haya sesión o no — quiero que un usuario ya
+ * logueado vea "Entrar al catálogo" en vez de "Crear cuenta".
  */
 
 import { computed } from "vue";
 import { useAuthStore } from "../stores/auth";
 import logo from "@/assets/img/logotipo/logo_music_space.svg";
 
-// Importación de componentes de la Home
 import HeroMockup from "../components/home/HeroMockup.vue";
 import ArtistRibbon from "../components/home/ArtistRibbon.vue";
 import HowItWorksSection from "../components/home/HowItWorksSection.vue";
@@ -90,10 +91,14 @@ import GlobalFooter from "../components/home/GlobalFooter.vue";
 
 const authStore = useAuthStore();
 
-/** Estado reactivo de sesión */
+/** Hay sesión activa. Lo uso para alternar los CTAs del hero y de la navbar. */
 const isLoggedIn = computed(() => authStore.currentUser !== null);
 
-/** Nombre del usuario formateado para el saludo */
+/**
+ * Primer nombre del usuario para el saludo de la navbar. Si por lo que sea no
+ * hay nombre (cuenta antigua, migración), caigo a un genérico para no pintar
+ * "Hola, undefined".
+ */
 const userName = computed(
   () => authStore.currentUser?.name?.split(" ")[0] || "Usuario",
 );
@@ -110,7 +115,7 @@ const userName = computed(
   overflow-x: hidden;
 }
 
-/* NAVEGACIÓN */
+/* Navbar sticky en cristal; se queda pegada arriba al hacer scroll. */
 .top-nav {
   position: sticky;
   top: 0;
@@ -180,7 +185,7 @@ const userName = computed(
   box-shadow: 0 4px 12px rgba(18, 101, 255, 0.3);
 }
 
-/* HERO SECTION */
+/* Zona del hero (titular grande + mockup). */
 .hero {
   position: relative;
   padding: 100px 56px 140px;
@@ -188,7 +193,7 @@ const userName = computed(
   overflow: hidden;
 }
 
-/* Gradientes sutiles de fondo para iluminar el Hero */
+/* Dos luces radiales muy suaves para que el negro puro no se vea plano. */
 .hero::before {
   content: "";
   position: absolute;
@@ -275,7 +280,7 @@ const userName = computed(
   backdrop-filter: blur(10px);
 }
 
-/* ÁREA DEL MOCKUP DINÁMICO */
+/* Columna derecha del hero: mockup flotando con un halo detrás. */
 .hero-right {
   position: relative;
   display: flex;
@@ -303,7 +308,7 @@ const userName = computed(
   transform: translateY(-15px);
 }
 
-/* CONTENEDOR DE TRANSICIÓN */
+/* Tira clara entre el hero negro y el resto. Hace de corte visual. */
 .light-section-wrapper {
   background: #f5f8ff;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
@@ -312,7 +317,7 @@ const userName = computed(
   z-index: 2;
 }
 
-/* RESPONSIVE */
+/* A partir de tablet el hero pasa a una sola columna y el mockup queda arriba. */
 @media (max-width: 1024px) {
   .hero-grid {
     grid-template-columns: 1fr;

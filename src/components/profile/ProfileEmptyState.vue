@@ -15,13 +15,15 @@
 <script setup>
 /**
  * @file ProfileEmptyState.vue
- * @description Estado vacío para el dashboard. Se muestra cuando el usuario no tiene artistas
- * ni álbumes guardados, guiándolo hacia la sección de exploración.
+ * @description Empty state del dashboard. Lo pinta el padre cuando la
+ * biblioteca está vacía — mejor esto que dejar varias secciones vacías
+ * colgadas sin explicación. El CTA manda directamente a Explorar porque
+ * es el siguiente paso natural: si no tienes nada, busca algo.
  */
 </script>
 
 <style scoped>
-/* Contenedor centrado para crear un punto focal en pantallas vacías */
+/* Todo centrado para que el empty state se lea como una sola "escena". */
 .empty-section {
   display: flex;
   flex-direction: column;
@@ -49,7 +51,7 @@
   max-width: 360px;
 }
 
-/* Botón principal de acción con el azul corporativo */
+/* CTA principal. Mismo azul que el resto de botones de marca. */
 .empty-btn {
   margin-top: 12px;
   font-family: "Montserrat", sans-serif;

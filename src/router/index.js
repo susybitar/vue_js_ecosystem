@@ -1,13 +1,14 @@
 /**
- * @file index.js (Router)
- * @description Configuración central del enrutador de la aplicación.
- * Gestiona la navegación entre la zona pública (landing, login, registro) y
- * la zona privada del perfil de usuario.
+ * @file router/index.js
+ * @description Router de la app. Separo zona pública (landing + login +
+ * registro) y zona privada (todo lo que hay bajo /profile) con dos flags
+ * en `meta` (`requiresAuth` / `guestOnly`) y un único guard global que
+ * hace cumplir ambos.
  */
 
 import { createRouter, createWebHistory } from 'vue-router'
+import { useAuthStore } from '../stores/auth'
 
-// Importación de componentes de vista
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
 import RegisterView from '../views/RegisterView.vue'
@@ -18,8 +19,14 @@ import AlbumsView from '../views/AlbumsView.vue'
 import ExploreView from '../views/ExploreView.vue'
 
 /**
- * Definición del mapa de rutas del proyecto.
- * @type {Array<Object>}
+ * Tabla de rutas.
+ *
+ * Convención de `meta`:
+ * - `requiresAuth`: ruta privada; sin sesión mandamos al login.
+ * - `guestOnly`: ruta sólo para anónimos; con sesión saltamos al perfil
+ *   para no dejar que un usuario logueado vuelva al formulario de login.
+ *
+ * @type {Array<import('vue-router').RouteRecordRaw>}
  */
 const routes = [
   {
@@ -30,12 +37,14 @@ const routes = [
   {
     path: '/login',
     name: 'login',
-    component: LoginView
+    component: LoginView,
+    meta: { guestOnly: true }
   },
   {
     path: '/register',
     name: 'register',
-    component: RegisterView
+    component: RegisterView,
+    meta: { guestOnly: true }
   },
   {
     path: '/register-confirm',
@@ -45,49 +54,73 @@ const routes = [
   {
     path: '/forgot-password',
     name: 'forgot-password',
-    component: ForgotPasswordView
+    component: ForgotPasswordView,
+    meta: { guestOnly: true }
   },
   {
-    /** * Cargamos la vista de Perfil de forma perezosa (Lazy Loading) para 
-     * aligerar el bundle inicial de la aplicación.
-     */
+    // Lazy loading del perfil: es la vista más pesada y no quiero que entre
+    // en el bundle inicial cuando un usuario nuevo sólo ve la landing.
     path: '/profile',
     name: 'profile',
-    component: () => import('../views/ProfileView.vue')
+    component: () => import('../views/ProfileView.vue'),
+    meta: { requiresAuth: true }
   },
   {
     path: '/profile/artists',
     name: 'profile-artists',
-    component: ArtistsView
+    component: ArtistsView,
+    meta: { requiresAuth: true }
   },
   {
     path: '/profile/albums',
     name: 'profile-albums',
-    component: AlbumsView
+    component: AlbumsView,
+    meta: { requiresAuth: true }
   },
   {
-    /**
-     * Ruta dinámica que permite filtrar la vista de álbumes para un artista concreto.
-     * El parámetro ':id' se utiliza para filtrar la colección en AlbumsView.
-     */
+    // Misma vista que /profile/albums pero prefiltrada por artista. El `:id`
+    // lo lee AlbumsView con useRoute() para aplicar el filtro inicial.
     path: '/profile/artists/:id/albums',
     name: 'artist-albums',
-    component: AlbumsView
+    component: AlbumsView,
+    meta: { requiresAuth: true }
   },
   {
     path: '/profile/explore',
     name: 'profile-explore',
-    component: ExploreView
+    component: ExploreView,
+    meta: { requiresAuth: true }
   }
 ]
 
-/**
- * Instancia del enrutador.
- * Utiliza 'createWebHistory' para una navegación limpia sin el símbolo '#' en la URL.
- */
+/** Uso `createWebHistory` para tener URLs limpias (sin el `#` de hash mode). */
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes
+})
+
+/**
+ * Guard global.
+ *
+ * 1. `requiresAuth` sin sesión → al login.
+ * 2. `guestOnly` con sesión → al perfil (evita volver a /login cuando ya
+ *    estás dentro).
+ *
+ * Resuelvo el authStore aquí dentro, no a nivel de módulo, para asegurarme
+ * de que Pinia ya está montado cuando se dispara la primera navegación.
+ */
+router.beforeEach((to) => {
+  const authStore = useAuthStore()
+
+  if (to.meta.requiresAuth && !authStore.isLoggedIn) {
+    return { name: 'login' }
+  }
+
+  if (to.meta.guestOnly && authStore.isLoggedIn) {
+    return { name: 'profile' }
+  }
+
+  return true
 })
 
 export default router

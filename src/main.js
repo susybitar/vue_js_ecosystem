@@ -1,8 +1,8 @@
 /**
  * @file main.js
- * @description Punto de entrada principal de la aplicación. 
- * Se encarga de instanciar Vue y conectar los plugins fundamentales:
- * Pinia (Estado), Router (Navegación) y Vuetify (Diseño y Componentes).
+ * @description Arranque de la app. Monto Vue y le engancho Pinia, el router
+ * y Vuetify. Aquí también dejo el tema custom porque es configuración única
+ * de inicio y no me compensaba sacarlo a un archivo aparte.
  */
 
 import { createApp } from 'vue'
@@ -10,20 +10,19 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 
-// --- Configuración de Vuetify ---
 import 'vuetify/styles'
 import { createVuetify } from 'vuetify'
 import * as components from 'vuetify/components'
 import * as directives from 'vuetify/directives'
 
-// Configuración de Iconos (Material Design Icons)
 import { aliases, mdi } from 'vuetify/iconsets/mdi'
 import '@mdi/font/css/materialdesignicons.css'
 
 /**
- * Personalización de Vuetify con la identidad visual de Future Space.
- * Implementa una paleta semántica basada en tendencias SaaS contemporáneas,
- * optimizando el contraste y la legibilidad.
+ * Tema claro custom. Lo llamo futureSpaceTheme porque fue el nombre que
+ * cogí del mock inicial. Los tonos azules son la identidad visual del
+ * proyecto; el modo "dark" real de la app se pinta con variables CSS en
+ * cada vista, no con otro tema de Vuetify.
  */
 const vuetify = createVuetify({
   components,
@@ -34,12 +33,12 @@ const vuetify = createVuetify({
       futureSpaceTheme: {
         dark: false,
         colors: {
-          primary: '#1265FF',      // Azul corporativo: Botones de acción y estados activos.
-          secondary: '#0A275C',    // Azul profundo: Para jerarquía en headers y secciones.
-          accent: '#3D83FF',       // Azul medio: Enlaces y énfasis visuales.
-          background: '#F5F8FF',   // Fondo suavizado: Evita el blanco puro para reducir fatiga.
-          surface: '#FFFFFF',      // Color de superficies: Tarjetas, modales y campos de entrada.
-          'on-surface': '#1A1A1A', // Contraste tipográfico: Texto principal sobre fondo claro.
+          primary: '#1265FF',
+          secondary: '#0A275C',
+          accent: '#3D83FF',
+          background: '#F5F8FF',
+          surface: '#FFFFFF',
+          'on-surface': '#1A1A1A',
           error: '#FF5252',
           info: '#2196F3',
           success: '#4CAF50',
@@ -55,15 +54,10 @@ const vuetify = createVuetify({
   },
 })
 
-/**
- * Inicialización de la Aplicación
- * Se inyectan los plugins en la instancia de Vue y se monta el proyecto 
- * en el contenedor del DOM identificado como '#app'.
- */
 const app = createApp(App)
 
-app.use(createPinia()) // Gestión de estado global
-app.use(router)      // Gestión de rutas
-app.use(vuetify)     // Sistema de diseño y UI
+app.use(createPinia())
+app.use(router)
+app.use(vuetify)
 
 app.mount('#app')

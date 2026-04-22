@@ -44,21 +44,18 @@
 <script setup>
 /**
  * @file StepPassword.vue
- * @description Segundo paso del registro. Captura la contraseña y pinta un checklist visual de seguridad basado en las validaciones que recibe.
- */
-
-/**
- * Datos que inyectamos en el componente
- * @param {string} modelValue - El texto actual de la contraseña (v-model)
- * @param {boolean} show - Controla si el texto está visible u oculto tras los asteriscos
- * @param {Object} validations - Banderas booleanas con el estado de seguridad (hasLength, hasUppercase, hasNumberOrSpecial)
+ * @description Paso 2 del registro: contraseña + checklist de requisitos.
+ * Las banderas del checklist me las da el padre (ya computadas por
+ * `useAuthValidators`); aquí sólo las pinto y gestiono el toggle del ojito
+ * para mostrar/ocultar el texto.
+ *
+ * @prop {string} modelValue - Contraseña actual (v-model).
+ * @prop {boolean} show - true para que el input enseñe el texto en claro.
+ * @prop {{ hasLength: boolean, hasUppercase: boolean, hasNumberOrSpecial: boolean }} validations
+ *   Estado de cada requisito. Los marco con check cuando están a true.
+ * @fires update:model-value - Nuevo valor del input.
+ * @fires toggle-show - El usuario pulsó el ojito (el padre invierte `show`).
  */
 defineProps(["modelValue", "show", "validations"]);
-
-/**
- * Eventos hacia el padre
- * @fires update:model-value - Sincroniza el texto que el usuario va escribiendo
- * @fires toggle-show - Pide al padre que cambie el estado del icono del ojito
- */
 defineEmits(["update:model-value", "toggle-show"]);
 </script>

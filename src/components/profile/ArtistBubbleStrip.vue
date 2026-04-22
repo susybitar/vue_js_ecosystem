@@ -30,24 +30,25 @@
 
 <script setup>
 /**
- * @file ArtistBubbles.vue
- * @description Carrusel horizontal de artistas en formato circular.
- * Se usa en el dashboard principal para dar acceso rápido a las discografías.
- */
-
-/**
- * Propiedades del componente
- * @param {Array} artists - Lista de objetos artista a renderizar
+ * @file ArtistBubbleStrip.vue
+ * @description Tira horizontal de artistas en formato "burbuja" (foto
+ * circular + nombre). La uso en el dashboard del perfil como atajo a la
+ * discografía de cada uno — pinchas y te lleva a la página de álbumes
+ * filtrados por ese artista.
+ *
+ * @prop {Array} artists - Lista de artistas que el padre me pasa ya
+ *   ordenados/recortados (en el dashboard, los 10 más recientes).
  */
 defineProps({
   artists: { type: Array, required: true },
 });
 
 /**
- * Resuelve la imagen del artista. Si no tiene foto propia, genera una de Unsplash
- * usando el nombre como semilla (sig) para que la imagen sea consistente.
- * @param {object} artist - Objeto con los datos del artista
- * @returns {string} URL final de la imagen
+ * URL final de la foto del artista. Si no tiene imagen propia, tiro del
+ * mismo placeholder de Unsplash que uso en las tarjetas, pero le paso el
+ * nombre como `sig` para que cada artista se quede con una variación
+ * estable — sin eso, todos compartirían la misma foto y el strip se vería
+ * repetitivo.
  */
 function resolveArtistImage(artist) {
   if (artist.image) return artist.image;
@@ -87,7 +88,8 @@ function resolveArtistImage(artist) {
   color: #5a9aff;
 }
 
-/* Contenedor con scroll horizontal oculto */
+/* Scroll horizontal con la scrollbar oculta — así parece un "carrusel"
+   aunque sea un overflow-x normal. */
 .artist-scroll {
   display: flex;
   gap: 24px;
@@ -108,7 +110,7 @@ function resolveArtistImage(artist) {
   flex-shrink: 0;
 }
 
-/* Envoltura circular con transición de borde y escala en hover */
+/* Círculo con borde tenue. Al hover, el borde se ilumina en azul. */
 .bubble-img-wrap {
   width: 80px;
   height: 80px;

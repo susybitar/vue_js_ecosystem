@@ -74,10 +74,13 @@
 
 <script setup>
 /**
- * @file HeroMockup.vue (Biblioteca Dinámica)
- * @description Representación visual premium de la biblioteca del usuario.
- * Incluye efectos de profundidad (tilt), partículas de polvo y un fondo atmosférico (aura)
- * que cambia de color basándose en el álbum seleccionado actualmente.
+ * @file HeroMockup.vue
+ * @description Mockup dinámico del hero: panel glass con una grid 3x2 de
+ * álbumes + tilt 3D siguiendo el ratón + aura de fondo que cambia de color
+ * según el álbum "activo" (uso el extractor de colores dominantes). Cada
+ * 4,5s cambio el álbum activo para que el hero nunca se vea estático. Los
+ * álbumes los pido a Deezer con queries curadas a mano — así aseguro que
+ * las portadas queden variadas y con buen contraste.
  */
 
 import { ref, computed, onMounted, onBeforeUnmount } from "vue";
@@ -88,8 +91,10 @@ const { searchDeezer } = useDeezerApi();
 const { extractColors } = useDominantColors();
 
 /**
- * Curaduría de álbumes para asegurar un impacto visual diverso y profesional.
- * @type {string[]}
+ * Álbumes curados a mano. Los elegí porque son portadas reconocibles y con
+ * paletas muy distintas entre sí — así el aura del fondo se nota al cambiar
+ * de uno a otro. Si alguno desapareciera de Deezer, el componente sigue
+ * funcionando con los que sí llegan.
  */
 const CURATED_QUERIES = [
   "AM Arctic Monkeys",
@@ -100,27 +105,31 @@ const CURATED_QUERIES = [
   "Blackstar David Bowie",
 ];
 
+/** Chips decorativos del panel. El primero va "activo" sólo por estética. */
 const FILTER_CHIPS = ["Todos", "Rock", "Indie", "Electrónica", "Pop"];
 
-/** Estado de los álbumes cargados y la celda activa para el ciclo visual */
 const albums = ref([]);
 const activeIndex = ref(0);
 
-/** Colores del aura atmosférica (empiezan con tonos base de MusicSpace) */
+/**
+ * Colores del aura. Arranca con la paleta de marca para que mientras llega
+ * la API el fondo ya se vea "correcto" y no un flash negro.
+ */
 const auraColors = ref([
   "rgb(18, 101, 255)",
   "rgb(10, 39, 92)",
   "rgb(5, 5, 5)",
 ]);
 
-/** Posición del ratón normalizada (0 a 1) para el efecto Tilt */
+/** Posición del ratón normalizada a [0,1]. La uso para el tilt 3D. */
 const mouse = ref({ x: 0.5, y: 0.5 });
 
 let cycleTimer = null;
 
 /**
- * Genera el grid de 6 elementos. Si la API falla o devuelve menos,
- * rellena con null para mostrar esqueletos de carga.
+ * Grid de 6. Si Deezer devolvió menos, relleno con null y el template
+ * pinta skeletons en los huecos — así el tamaño del panel no baila durante
+ * la carga.
  */
 const gridAlbums = computed(() => {
   const list = [...albums.value];
@@ -128,11 +137,12 @@ const gridAlbums = computed(() => {
   return list.slice(0, 6);
 });
 
-/** Devuelve el objeto del álbum que tiene el foco actual */
+/** Álbum que tiene el foco ahora mismo (el que alimenta el aura). */
 const activeAlbum = computed(() => albums.value[activeIndex.value] || null);
 
 /**
- * Cálculo de artistas únicos para las estadísticas del pie del panel.
+ * Cuenta de artistas únicos para el pie del panel. Uso `Math.max(..., 1)`
+ * para no enseñar "0 artistas" durante la carga — queda feo.
  */
 const uniqueArtists = computed(() => {
   const names = new Set(
@@ -142,16 +152,17 @@ const uniqueArtists = computed(() => {
 });
 
 /**
- * Formatea la fecha de lanzamiento para extraer solo el año.
- * @param {object} album
- * @returns {string|null}
+ * Saca el año del `release_date` (YYYY-MM-DD). Si no hay fecha devuelvo null
+ * y el template se salta el separador "·" para no quedar colgando.
  */
 function year(album) {
   return album?.release_date ? album.release_date.slice(0, 4) : null;
 }
 
 /**
- * Genera el degradado radial dinámico para el fondo atmosférico.
+ * Tres luces radiales que se desvanecen hacia transparente. El orden y las
+ * posiciones (20/20, 80/30, 50/85) están calculados para que los tres colores
+ * no se solapen en el mismo punto.
  */
 const auraStyle = computed(() => {
   const [c1, c2, c3] = auraColors.value;
@@ -166,22 +177,20 @@ const auraStyle = computed(() => {
 });
 
 /**
- * Calcula la rotación 3D basada en la posición del ratón.
+ * Tilt 3D. Inclinación máxima ±10° en cada eje — más allá se ve demasiado
+ * forzado. Mantengo el `translate(-50%, -50%)` dentro del `transform` porque
+ * el estilo inline pisa la regla CSS base; sin esto el panel pierde el
+ * centrado y se corta por la derecha.
  */
 const tiltStyle = computed(() => {
   const rotateY = (mouse.value.x - 0.5) * 10;
   const rotateX = (0.5 - mouse.value.y) * 10;
-  // Mantenemos el translate(-50%, -50%) dentro del transform porque el estilo inline
-  // pisa la regla CSS base; sin él, el panel pierde el centrado y se corta.
   return {
     transform: `translate(-50%, -50%) rotateX(${rotateX}deg) rotateY(${rotateY}deg)`,
   };
 });
 
-/**
- * Captura el movimiento del ratón sobre el componente.
- * @param {MouseEvent} event
- */
+/** Normaliza la posición del ratón dentro del rectángulo del componente. */
 function onMouseMove(event) {
   const rect = event.currentTarget.getBoundingClientRect();
   mouse.value = {
@@ -190,15 +199,15 @@ function onMouseMove(event) {
   };
 }
 
-/** Resetea la inclinación cuando el ratón sale del componente */
+/** Al salir el ratón, vuelvo al centro para que el panel se reajuste. */
 function resetMouse() {
   mouse.value = { x: 0.5, y: 0.5 };
 }
 
 /**
- * Carga un álbum específico desde la API de Deezer.
- * @param {string} query - Término de búsqueda
- * @returns {Promise<object|null>}
+ * Carga un álbum desde Deezer a partir de una query curada. Me quedo con el
+ * primer resultado. Si la API falla, devuelvo null y el grid pinta skeleton
+ * — no quiero que un fallo de red rompa el hero entero.
  */
 async function loadCurated(query) {
   try {
@@ -210,7 +219,9 @@ async function loadCurated(query) {
 }
 
 /**
- * Actualiza los colores del fondo extrayendo los tonos dominantes de la portada activa.
+ * Recalcula la paleta del aura a partir de la portada activa. Tiro de la
+ * imagen grande si existe, que da mejores dominantes; si no, me conformo
+ * con `cover_medium`.
  */
 async function refreshAura() {
   if (!activeAlbum.value) return;
@@ -218,9 +229,7 @@ async function refreshAura() {
   auraColors.value = await extractColors(url, 3);
 }
 
-/**
- * Incrementa el índice activo y refresca la atmósfera visual.
- */
+/** Avanza la celda activa y refresca el aura. */
 function cycleActive() {
   if (!albums.value.length) return;
   activeIndex.value = (activeIndex.value + 1) % albums.value.length;
@@ -228,7 +237,8 @@ function cycleActive() {
 }
 
 /**
- * Inicializa la carga de datos y establece el temporizador de ciclo.
+ * Al montar: disparo todas las queries en paralelo, descarto las que fallaron,
+ * saco la paleta del primero y arranco el bucle de rotación.
  */
 onMounted(async () => {
   const loaded = await Promise.all(CURATED_QUERIES.map(loadCurated));
@@ -237,7 +247,7 @@ onMounted(async () => {
   cycleTimer = setInterval(cycleActive, 4500);
 });
 
-/** Limpieza de timers al destruir el componente */
+/** Limpio el interval al desmontar para que no siga tirando memoria. */
 onBeforeUnmount(() => {
   if (cycleTimer) clearInterval(cycleTimer);
 });
@@ -254,7 +264,9 @@ onBeforeUnmount(() => {
   isolation: isolate;
 }
 
-/* Aura atmosférica con colores de la portada activa */
+/* Aura de fondo. Tres luces radiales con blur fuerte que se reconfiguran al
+   cambiar la portada activa. El `transition: background` suave es lo que
+   hace que el cambio de paleta no sea un "corte" sino un fundido. */
 .aura-field {
   position: absolute;
   inset: -10%;
@@ -276,7 +288,8 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Partículas de polvo en overlay */
+/* Partículas de "polvo" que suben despacio por encima del aura. Poco más
+   que decoración, pero le dan mucho carácter al hero. */
 .dust-field {
   position: absolute;
   inset: 0;
@@ -314,7 +327,8 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Panel glass: replica de la interfaz interna */
+/* Panel glass con la grid de álbumes. La idea es que imite por fuera la
+   interfaz real de la biblioteca privada. */
 .library-panel {
   position: absolute;
   top: 50%;
@@ -361,7 +375,7 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
-/* Chips de filtro */
+/* Chips de filtro. Sólo decorativos: no filtran nada realmente. */
 .filter-chips {
   display: flex;
   gap: 6px;
@@ -387,7 +401,7 @@ onBeforeUnmount(() => {
   box-shadow: 0 4px 14px rgba(18, 101, 255, 0.4);
 }
 
-/* Grid de portadas */
+/* Grid 3x2 de portadas. */
 .album-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -443,7 +457,7 @@ onBeforeUnmount(() => {
   }
 }
 
-/* Anillo de selección */
+/* Anillo azul alrededor de la portada activa, con pulso sutil. */
 .active-ring {
   position: absolute;
   inset: 0;
@@ -496,7 +510,7 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
 }
 
-/* Pie del panel */
+/* Pie del panel con las stats (álbumes, artistas, orden). */
 .panel-footer {
   display: flex;
   align-items: center;

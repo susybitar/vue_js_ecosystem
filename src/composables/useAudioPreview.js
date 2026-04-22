@@ -1,65 +1,69 @@
 /**
  * @file useAudioPreview.js
- * @description Composable para gestionar las pre-escuchas de audio de Deezer.
- * Encapsula la lógica del objeto nativo Audio y asegura que la reproducción 
- * se detenga al navegar fuera de la vista.
+ * @description Reproductor de previews (clips de 30s) de Deezer. Uso el
+ * `Audio` nativo directamente porque no necesito nada más sofisticado y
+ * así me ahorro una dependencia tipo Howler.
  */
 
 import { ref, onBeforeUnmount } from 'vue'
 
 /**
- * Hook para controlar la reproducción de clips de audio de 30 segundos.
- * @returns {Object} Estado del track actual y método para alternar la reproducción.
+ * @returns {{
+ *   currentPreview: import('vue').Ref<number|null>,
+ *   togglePreview: (track: {id: number, preview: string}) => void
+ * }}
  */
 export function useAudioPreview() {
 
-  /** ID del track que suena actualmente. Sirve para marcar la UI como "playing" */
+  /** ID del track que suena ahora mismo; lo uso para marcar el botón activo en la UI. */
   const currentPreview = ref(null)
 
-  /** * Instancia nativa del reproductor. 
-   * Se mantiene fuera del estado reactivo para evitar overhead innecesario. 
+  /**
+   * Instancia del reproductor. La dejo fuera del `ref` para no obligar a
+   * Vue a observarla (no me interesan los cambios internos del Audio).
+   * @type {HTMLAudioElement|null}
    */
   let audioPlayer = null
 
   /**
-   * Controla el flujo de reproducción: Play, Pausa o Cambio de pista.
-   * @param {object} track - Objeto de la canción con ID y URL del clip (.preview)
+   * Play / pause / cambio de pista, todo en el mismo handler.
+   * Comportamiento:
+   *  - Click en la que ya suena → pausa.
+   *  - Click en otra distinta → corta la anterior y empieza la nueva.
+   * @param {{id: number, preview: string}} track
    */
   function togglePreview(track) {
-    // Si el usuario pincha en la que ya suena, simplemente pausamos
     if (currentPreview.value === track.id) {
       audioPlayer?.pause()
       currentPreview.value = null
       return
     }
 
-    // Si hay algo sonando (aunque sea otra pista), lo matamos antes de empezar lo nuevo
     if (audioPlayer) {
       audioPlayer.pause()
     }
 
-    // Inicializamos el audio con un volumen moderado
     audioPlayer = new Audio(track.preview)
+    // 50% me parece un volumen razonable para no asustar al usuario.
     audioPlayer.volume = 0.5
     audioPlayer.play()
     currentPreview.value = track.id
 
-    /** Cuando el clip termina de forma natural, reseteamos el estado visual */
+    // Cuando termina el clip de forma natural, devuelvo el botón a reposo.
     audioPlayer.onended = () => {
       currentPreview.value = null
     }
   }
 
-  /** * Limpieza de seguridad. 
-   * Evita el efecto "fantasma" donde la música sigue sonando tras cerrar la vista.
-   */
+  // Importante: si no limpio aquí, el clip sigue sonando después de
+  // cambiar de vista (pasé por esto, de ahí el comentario).
   onBeforeUnmount(() => {
     audioPlayer?.pause()
     audioPlayer = null
   })
 
-  return { 
-    currentPreview, 
-    togglePreview 
+  return {
+    currentPreview,
+    togglePreview
   }
 }

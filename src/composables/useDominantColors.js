@@ -1,26 +1,29 @@
 /**
  * @file useDominantColors.js
- * @description Extractor de colores dominantes desde una imagen remota.
- * Analiza los píxeles de una carátula para generar una paleta dinámica que alimenta
- * los efectos atmosféricos y gradientes de la interfaz.
+ * @description Saca los colores dominantes de una carátula para pintar
+ * gradientes y fondos que peguen con la portada. Es la salsa del efecto
+ * "página de álbum" cuando abres un disco y el fondo se tiñe con su color.
  */
 
 export function useDominantColors() {
 
-  /** * Paleta por defecto para casos de error (CORS, imágenes rotas, etc.).
-   * Mantiene la estética azul y oscura del proyecto (Pitch Black).
+  /**
+   * Paleta de seguridad para cuando la extracción falla (CORS, imagen rota,
+   * carátula muy apagada, etc.). Mantengo la onda azul de la app para que
+   * el fallback no rompa la estética general.
    */
   const FALLBACK = ['rgb(18, 101, 255)', 'rgb(10, 39, 92)', 'rgb(5, 5, 5)']
 
   /**
-   * Carga una imagen en memoria gestionando los permisos de CORS.
-   * @param {string} url - URL de la imagen a cargar.
-   * @returns {Promise<HTMLImageElement>} Promesa con el elemento de imagen cargado.
+   * Carga una imagen remota sin manchar el canvas (tainted). Necesito
+   * `crossOrigin = 'anonymous'` para poder leer los píxeles después.
+   * @param {string} url
+   * @returns {Promise<HTMLImageElement>}
    */
   function loadImage(url) {
     return new Promise((resolve, reject) => {
       const img = new Image()
-      img.crossOrigin = 'anonymous' // Clave para permitir el acceso a los píxeles vía Canvas
+      img.crossOrigin = 'anonymous'
       img.onload = () => resolve(img)
       img.onerror = reject
       img.src = url
@@ -28,12 +31,12 @@ export function useDominantColors() {
   }
 
   /**
-   * Convierte valores RGB a espacio HSL (Hue, Saturation, Lightness).
-   * Fundamental para filtrar píxeles que no aportan información de color (grises, muy oscuros o muy claros).
-   * @param {number} r - Rojo (0-255).
-   * @param {number} g - Verde (0-255).
-   * @param {number} b - Azul (0-255).
-   * @returns {number[]} Array con [matiz 0-360, saturación 0-1, luminosidad 0-1].
+   * Paso a HSL para poder descartar grises y píxeles demasiado oscuros o
+   * claros antes de promediar; en RGB es mucho más engorroso detectarlos.
+   * @param {number} r - 0-255
+   * @param {number} g - 0-255
+   * @param {number} b - 0-255
+   * @returns {[number, number, number]} [hue 0-360, saturación 0-1, luminosidad 0-1].
    */
   function rgbToHsl(r, g, b) {
     r /= 255; g /= 255; b /= 255
@@ -41,7 +44,7 @@ export function useDominantColors() {
     const min = Math.min(r, g, b)
     const l = (max + min) / 2
     let h = 0, s = 0
-    
+
     if (max !== min) {
       const d = max - min
       s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
@@ -56,38 +59,40 @@ export function useDominantColors() {
   }
 
   /**
-   * Analiza la imagen para extraer los colores que mejor la representan visualmente.
-   * Dibuja la imagen en un canvas reducido para optimizar el rendimiento del escaneo.
-   * @param {string} url - URL de la imagen.
-   * @param {number} [count=3] - Cantidad de colores dominantes a extraer.
-   * @returns {Promise<string[]>} Array de cadenas RGB listas para CSS.
+   * Devuelve los `count` colores más representativos de la imagen. Reescalo
+   * a 64×64 antes de leer: con miles de píxeles la UI se nota, y a esta
+   * resolución el resultado es prácticamente idéntico y va instantáneo.
+   * @param {string} url
+   * @param {number} [count=3]
+   * @returns {Promise<string[]>} Strings `rgb(...)` listos para CSS.
    */
   async function extractColors(url, count = 3) {
     if (!url) return FALLBACK
-    
+
     try {
       const img = await loadImage(url)
-      const size = 64 // Escala reducida para procesar menos píxeles sin perder la esencia cromática
+      const size = 64
       const canvas = document.createElement('canvas')
       canvas.width = size
       canvas.height = size
-      
+
       const ctx = canvas.getContext('2d')
       ctx.drawImage(img, 0, 0, size, size)
       const { data } = ctx.getImageData(0, 0, size, size)
 
-      /** * Agrupamos por matiz (Hue) en 12 cubos (buckets) de 30º cada uno.
-       * Esto evita obtener colores casi idénticos y asegura variedad.
+      /**
+       * 12 buckets de 30º sobre el matiz. Así evito que "los 3 dominantes"
+       * salgan siendo tres rojos casi idénticos y me aseguro variedad.
        */
       const buckets = Array.from({ length: 12 }, () => ({ r: 0, g: 0, b: 0, n: 0 }))
 
       for (let i = 0; i < data.length; i += 4) {
         const r = data[i], g = data[i + 1], b = data[i + 2]
         const [h, s, l] = rgbToHsl(r, g, b)
-        
-        // Descartamos píxeles que sean demasiado oscuros, claros o neutros (grises)
+
+        // Fuera píxeles apagados, quemados o grises: no aportan al gradiente.
         if (l < 0.15 || l > 0.85 || s < 0.25) continue
-        
+
         const idx = Math.floor(h / 30) % 12
         buckets[idx].r += r
         buckets[idx].g += g
@@ -95,21 +100,20 @@ export function useDominantColors() {
         buckets[idx].n += 1
       }
 
-      /** Seleccionamos los grupos con mayor densidad de píxeles y calculamos su promedio RGB */
+      // Me quedo con los buckets más densos y promedio sus píxeles.
       const top = buckets
         .filter((b) => b.n > 0)
         .sort((a, b) => b.n - a.n)
         .slice(0, count)
         .map((b) => `rgb(${Math.round(b.r / b.n)}, ${Math.round(b.g / b.n)}, ${Math.round(b.b / b.n)})`)
 
-      // Rellenamos con la paleta de seguridad si no se encontraron suficientes colores válidos
+      // Si la portada tiene muy poco color, relleno con el fallback.
       while (top.length < count) {
         top.push(FALLBACK[top.length] || FALLBACK[0])
       }
 
       return top
     } catch (error) {
-      // Si el Canvas falla por restricciones de seguridad (Tainted Canvas), aplicamos fallback
       return FALLBACK
     }
   }

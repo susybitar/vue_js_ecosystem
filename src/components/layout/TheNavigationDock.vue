@@ -98,8 +98,8 @@
             :key="seed"
             size="64"
             class="cursor-pointer avatar-option"
-            :class="{ 'active-avatar': currentAvatarSeed === seed }"
-            @click="currentAvatarSeed = seed"
+            :class="{ 'active-avatar': editUser.avatarSeed === seed }"
+            @click="editUser.avatarSeed = seed"
           >
             <v-img
               :src="`https://api.dicebear.com/7.x/bottts/svg?seed=${seed}&backgroundColor=1265ff,303030,000000`"
@@ -107,12 +107,13 @@
           </v-avatar>
         </div>
 
-        <v-form @submit.prevent="saveProfile">
+        <v-form v-model="isFormValid" @submit.prevent="saveProfile">
           <v-text-field
             label="NOMBRE"
             variant="underlined"
             color="#1265FF"
             v-model="editUser.name"
+            :rules="nameRules"
             class="mb-6 white-input text-white"
           />
           <v-text-field
@@ -120,6 +121,7 @@
             variant="underlined"
             color="#1265FF"
             v-model="editUser.email"
+            :rules="emailRules"
             class="mb-10 white-input text-white"
           />
           <v-btn
@@ -128,6 +130,8 @@
             variant="flat"
             class="font-weight-black py-6 rounded-lg"
             type="submit"
+            :disabled="!isFormValid"
+            :loading="authStore.loading"
             >GUARDAR CAMBIOS</v-btn
           >
         </v-form>
@@ -139,21 +143,31 @@
 <script setup>
 /**
  * @file TheNavigationDock.vue
- * @description Dock lateral flotante con efecto glassmorphism. Centraliza la navegación principal
- * de la zona privada y la gestión del perfil de usuario.
+ * @description Dock lateral flotante con cristal. Es la navegación principal
+ * de la zona privada (Perfil / Artistas / Álbumes / Explorar) y además
+ * contiene el menú de usuario con el modal de edición de perfil. El dock y
+ * el modal viven juntos porque comparten el mismo `currentUser` y el mismo
+ * flujo — separarlos sería duplicar imports sin ganar nada.
  */
 import { ref, computed, reactive } from "vue";
 import { useRouter } from "vue-router";
 import { useAuthStore } from "../../stores/auth";
+import { useUIStore } from "../../stores/ui";
 
 const router = useRouter();
 const authStore = useAuthStore();
+const uiStore = useUIStore();
 
-/** Estado para mostrar/ocultar el modal de edición de perfil */
+/** Modal de edición de perfil abierto/cerrado. */
 const showSettings = ref(false);
 
-/** * Semillas para la generación de avatares mediante Dicebear API.
- * Permite que el usuario elija una identidad visual robótica.
+/** Validez del formulario del modal (lo rellena Vuetify vía v-model). */
+const isFormValid = ref(false);
+
+/**
+ * Seeds que paso a Dicebear para generar avatares. Tiro de seeds con
+ * "personalidad" (Astro, Cosmo, Nova...) porque quedan mejor en la UI que
+ * strings aleatorios.
  */
 const botSeeds = [
   "Spike",
@@ -165,24 +179,53 @@ const botSeeds = [
   "Cosmo",
 ];
 
-/** Semilla seleccionada por defecto */
-const currentAvatarSeed = ref("Cyberpunk");
+/**
+ * Seed por defecto si el usuario nunca eligió avatar. Lo dejo en una
+ * constante para que dock y modal usen exactamente el mismo fallback.
+ */
+const DEFAULT_AVATAR_SEED = "Cyberpunk";
 
-/** * Clon reactivo de los datos del usuario para el formulario de edición.
- * Evitamos mutar el store directamente hasta que el usuario guarde.
+/**
+ * Copia reactiva del usuario, sólo para el modal. No toco `authStore.currentUser`
+ * hasta que el usuario pulse "Guardar"; así si cierra sin guardar no pierdo
+ * nada y tampoco dejo al store en un estado a medias.
  */
 const editUser = reactive({
   name: authStore.currentUser?.name || "",
   email: authStore.currentUser?.email || "",
+  avatarSeed: authStore.currentUser?.avatarSeed || DEFAULT_AVATAR_SEED,
 });
 
-/** Construye la URL del avatar basándose en la semilla elegida */
-const userAvatarUrl = computed(
-  () =>
-    `https://api.dicebear.com/7.x/bottts/svg?seed=${currentAvatarSeed.value}&backgroundColor=1265ff,303030,000000`,
-);
+/**
+ * URL del avatar que pinto en el dock. Lo saco de `currentUser` (no de
+ * `editUser`) para que reaccione al guardar el perfil y también a cualquier
+ * cambio externo — por ejemplo si en el futuro añado refresh de sesión.
+ */
+const userAvatarUrl = computed(() => {
+  const seed = authStore.currentUser?.avatarSeed || DEFAULT_AVATAR_SEED;
+  return `https://api.dicebear.com/7.x/bottts/svg?seed=${seed}&backgroundColor=1265ff,303030,000000`;
+});
 
-/** Configuración de los accesos directos del dock */
+/** Reglas del nombre. Mismos mínimos/máximos que en el paso 3 del registro. */
+const nameRules = [
+  (v) => !!v?.trim() || "El nombre no puede quedar vacío",
+  (v) => (v?.trim().length || 0) >= 2 || "Mínimo 2 caracteres",
+  (v) => (v?.trim().length || 0) <= 40 || "Máximo 40 caracteres",
+];
+
+/**
+ * Reglas del email: presencia y formato. No compruebo duplicados aquí porque
+ * el store ya devuelve `reason: "email-taken"` si choca con otra cuenta, y
+ * prefiero enseñar ese error vía toast que duplicar la lógica en el form.
+ */
+const emailRules = [
+  (v) => !!v?.trim() || "El email es obligatorio",
+  (v) =>
+    /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test((v || "").trim()) ||
+    "Revisa el formato del email",
+];
+
+/** Accesos directos del dock. El orden es el que quiero ver de arriba abajo. */
 const navItems = [
   {
     title: "ARTISTAS",
@@ -205,31 +248,56 @@ const navItems = [
 ];
 
 /**
- * Inicializa el formulario con la info actual del usuario y abre el modal.
+ * Abre el modal de perfil. Antes de abrir, re-copio los datos del usuario
+ * al `editUser`; así si el usuario abre el modal, cambia algo, cierra sin
+ * guardar y lo vuelve a abrir, no se queda viendo sus cambios descartados.
  */
 function openSettings() {
   editUser.name = authStore.currentUser?.name || "";
   editUser.email = authStore.currentUser?.email || "";
+  editUser.avatarSeed =
+    authStore.currentUser?.avatarSeed || DEFAULT_AVATAR_SEED;
   showSettings.value = true;
 }
 
-/** * Cierra el modal de perfil.
- * Nota: La persistencia en el Store se implementará en la siguiente fase de desarrollo.
+/**
+ * Guarda los cambios del perfil. Traduzco los `reason` técnicos del store a
+ * mensajes que el usuario pueda entender — "email-taken" → toast en rojo,
+ * cualquier otro → error genérico. Si todo va bien, cierro el modal.
  */
 function saveProfile() {
-  showSettings.value = false;
+  if (!isFormValid.value) return;
+
+  const result = authStore.updateProfile({
+    name: editUser.name,
+    email: editUser.email,
+    avatarSeed: editUser.avatarSeed,
+  });
+
+  if (result.ok) {
+    uiStore.notify("Perfil actualizado");
+    showSettings.value = false;
+    return;
+  }
+
+  if (result.reason === "email-taken") {
+    uiStore.notify("Ese email ya está en uso por otra cuenta", "error");
+    return;
+  }
+
+  uiStore.notify("No pudimos actualizar tu perfil", "error");
 }
 
-/** * Limpia el estado de autenticación y redirige a la landing pública.
- */
+/** Cierra sesión y vuelve a la landing pública con un toast informativo. */
 function handleLogout() {
   authStore.logout();
+  uiStore.notify("Sesión cerrada", "info");
   router.push("/");
 }
 </script>
 
 <style scoped>
-/* Contenedor fijo que mantiene el dock centrado verticalmente a la izquierda */
+/* El dock vive fijado a la izquierda y centrado verticalmente. */
 .glass-dock-container {
   position: fixed;
   left: 24px;
@@ -240,7 +308,7 @@ function handleLogout() {
   z-index: 1000;
 }
 
-/* Efecto Glassmorphism con desenfoque de fondo y bordes sutiles */
+/* Cristal: fondo casi transparente + blur fuerte + borde apenas visible. */
 .glass-dock {
   background: rgba(255, 255, 255, 0.02);
   backdrop-filter: blur(40px);
@@ -285,7 +353,7 @@ function handleLogout() {
   border-color: #1265ff;
 }
 
-/* Marca visual para el avatar seleccionado en el modal */
+/* Avatar elegido en el modal: borde azul + escala + glow. */
 .active-avatar {
   border: 2px solid #1265ff;
   transform: scale(1.1);
@@ -296,13 +364,13 @@ function handleLogout() {
   border: 1px solid rgba(255, 255, 255, 0.1) !important;
 }
 
-/* Estilización de los inputs del modal para mantener el look Pitch Black */
+/* Inputs del modal en blanco para que contrasten con el fondo negro. */
 .white-input :deep(input) {
   color: white !important;
   font-weight: 700;
 }
 
-/* Scrollbar personalizado para el selector de avatares */
+/* Scrollbar fina para la tira de avatares cuando no cabe en el modal. */
 .custom-scroll::-webkit-scrollbar {
   height: 4px;
 }

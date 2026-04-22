@@ -134,46 +134,24 @@
 
     <AlbumDialog v-model="dialogOpen" :album="editingAlbum" @save="saveAlbum" />
 
-    <v-dialog v-model="deleteDialog" max-width="350">
-      <v-card
-        class="bg-grey-darken-4 pa-5 rounded-xl text-center border-sm"
-        style="border-color: rgba(255, 255, 255, 0.1) !important"
-      >
-        <v-icon color="error" size="48" class="mb-4"
-          >mdi-alert-circle-outline</v-icon
-        >
-        <h3 class="text-white text-h6 font-weight-black mb-2">
-          ¿Eliminar álbum?
-        </h3>
-        <p class="text-grey text-body-2 mb-6">
-          Esta acción borrará el álbum de tu biblioteca. No se puede deshacer.
-        </p>
-        <div class="d-flex ga-3">
-          <v-btn
-            variant="text"
-            color="white"
-            class="flex-grow-1 text-none font-weight-bold"
-            @click="deleteDialog = false"
-            >Cancelar</v-btn
-          >
-          <v-btn
-            color="error"
-            variant="flat"
-            class="flex-grow-1 text-none font-weight-black"
-            @click="executeDelete"
-            >Eliminar</v-btn
-          >
-        </div>
-      </v-card>
-    </v-dialog>
+    <ConfirmDialog
+      v-model="deleteDialog"
+      title="¿Eliminar álbum?"
+      message="Esta acción borrará el álbum de tu biblioteca. No se puede deshacer."
+      confirm-label="Eliminar"
+      @confirm="executeDelete"
+    />
   </v-layout>
 </template>
 
 <script setup>
 /**
  * @file AlbumsView.vue
- * @description Vista principal de gestión de álbumes.
- * Permite listar, filtrar por artista, buscar por título y ordenar cronológica o alfabéticamente.
+ * @description Lista de álbumes del usuario con filtros por artista, búsqueda
+ * por título y ordenación. Casi toda la lógica "dura" (filtro + búsqueda +
+ * ordenación) está en `useAlbumFilters` para no ensuciar la vista; aquí me
+ * quedo con el CRUD y los diálogos. Si la URL trae `:id`, uso ese id como
+ * filtro inicial por artista (discografía).
  */
 
 import { ref, computed } from "vue";
@@ -186,15 +164,15 @@ import TheNavigationDock from "../components/layout/TheNavigationDock.vue";
 import TheFooter from "../components/layout/TheFooter.vue";
 import AlbumCard from "../components/albums/AlbumCard.vue";
 import AlbumDialog from "../components/albums/AlbumDialog.vue";
+import ConfirmDialog from "../components/ui/ConfirmDialog.vue";
 
 const route = useRoute();
 const router = useRouter();
 const musicStore = useMusicStore();
 
-// Obtenemos el ID del artista desde la URL si existe (para discografías filtradas)
+// Si vengo de "Artistas → ver discografía", la ruta trae el id del artista.
 const routeArtistId = route.params.id ? Number(route.params.id) : null;
 
-// Lógica de filtrado y ordenación delegada al composable
 const {
   searchQuery,
   activeArtistFilter,
@@ -204,14 +182,15 @@ const {
   toggleArtistFilter,
 } = useAlbumFilters(routeArtistId);
 
-/** Estados para el flujo de edición y borrado */
+// Estado local de los diálogos (crear/editar + confirmar borrado).
 const dialogOpen = ref(false);
 const deleteDialog = ref(false);
 const editingAlbum = ref(null);
 const albumToDelete = ref(null);
 
 /**
- * Resuelve el nombre del artista seleccionado para el título de la página.
+ * Nombre del artista que filtra la vista (si lo hay). Se pinta en el título
+ * grande de la cabecera. Si no hay filtro, el título pasa a "Álbumes".
  */
 const filteredArtistName = computed(() => {
   if (!activeArtistFilter.value) return null;
@@ -222,7 +201,8 @@ const filteredArtistName = computed(() => {
 });
 
 /**
- * Mapeo de estilos para el botón de ordenación.
+ * Mapea el modo de ordenación actual a un icono y una etiqueta. Lo uso en el
+ * botón que cicla los modos; así no tengo un `v-if` por cada opción.
  */
 const sortUI = computed(() => {
   const modes = {
@@ -235,28 +215,35 @@ const sortUI = computed(() => {
 });
 
 /**
- * Obtiene los metadatos del artista propietario del álbum.
- * @param {number} id - ID del artista
- * @returns {Object} Nombre e imagen
+ * Devuelve nombre + imagen del artista al que pertenece un álbum. Lo paso a
+ * cada AlbumCard para que pueda pintar la autoría sin tener que buscar en el
+ * store por su cuenta.
+ *
+ * @param {number} id - Id del artista dueño del álbum.
+ * @returns {{ name: string, image?: string }} Datos mínimos para la card.
  */
 function resolveArtist(id) {
   const artist = musicStore.artists.find((a) => a.id === id);
   return { name: artist?.name || "Desconocido", image: artist?.image };
 }
 
+/** Abre el modal en modo "crear álbum". */
 function openCreateDialog() {
   editingAlbum.value = null;
   dialogOpen.value = true;
 }
 
+/** Abre el modal en modo "editar" con un álbum ya existente. */
 function openEditDialog(album) {
   editingAlbum.value = album;
   dialogOpen.value = true;
 }
 
 /**
- * Persiste los cambios del álbum en el store de Pinia.
- * @param {Object} payload - Datos del álbum
+ * Handler del evento `save` del AlbumDialog. Si llega con `id`, es edición;
+ * si no, creación.
+ *
+ * @param {{ id?: number, title: string, artistId: number, year: number }} payload
  */
 function saveAlbum(payload) {
   if (payload.id) {
@@ -271,28 +258,26 @@ function saveAlbum(payload) {
   }
 }
 
-/**
- * Abre el diálogo de confirmación de borrado.
- */
+/** Guarda el álbum objetivo y abre el diálogo de confirmación de borrado. */
 function confirmRemove(album) {
   albumToDelete.value = album;
   deleteDialog.value = true;
 }
 
 /**
- * Ejecuta el borrado definitivo.
+ * Borrado definitivo. El ConfirmDialog se cierra solo tras emitir `confirm`,
+ * así que aquí sólo me ocupo del store y de limpiar el álbum objetivo.
  */
 function executeDelete() {
   if (albumToDelete.value) {
     musicStore.deleteAlbum(albumToDelete.value.id);
   }
-  deleteDialog.value = false;
   albumToDelete.value = null;
 }
 </script>
 
 <style scoped>
-/* Contenedor optimizado para visualización en escritorio con el Dock lateral */
+/* Padding izquierdo grande para dejar sitio al dock fijo de la izquierda. */
 .page-container {
   padding: 48px 48px 48px 120px !important;
   max-width: 1600px;
@@ -334,7 +319,7 @@ function executeDelete() {
   letter-spacing: -1px;
 }
 
-/* Buscador minimalista con bordes integrados */
+/* Buscador. El borde apenas se ve hasta que recibe focus. */
 .search-bar {
   width: 220px;
 }

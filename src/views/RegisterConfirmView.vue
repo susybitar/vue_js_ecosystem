@@ -28,8 +28,10 @@
 <script setup>
 /**
  * @file RegisterConfirmView.vue
- * @description Pantalla de éxito post-registro. Proporciona feedback visual positivo
- * y redirige al usuario hacia la zona privada de la aplicación.
+ * @description Pantalla de "registro OK" con CTA para entrar al perfil.
+ * Lee el nombre del usuario desde la query de la URL en vez de sacarlo
+ * del store para no depender de que el login automático haya terminado
+ * cuando esta vista se monta.
  */
 import { computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
@@ -37,19 +39,17 @@ import { useRouter, useRoute } from "vue-router";
 const router = useRouter();
 const route = useRoute();
 
-/** * Recupera el nombre del usuario desde los parámetros de búsqueda (query string).
- * Esto permite personalizar el mensaje sin requerir una consulta inmediata al Store.
- */
+/** Nombre del usuario leído de `?name=...`, con fallback genérico. */
 const userName = computed(() => route.query.name || "Usuario");
 
-/** Redirección al Dashboard principal del perfil. */
+/** Lleva al dashboard del perfil. */
 function goToProfile() {
   router.push("/profile");
 }
 </script>
 
 <style scoped>
-/* Contenedor principal: Centrado absoluto y fondo heredado del layout Pitch Black */
+/* Centrado en pantalla; el fondo lo hereda del tema oscuro de App.vue. */
 .confirm-page {
   min-height: 100vh;
   display: flex;
@@ -63,7 +63,7 @@ function goToProfile() {
   max-width: 400px;
 }
 
-/* Efecto Glassmorphism sutil para el panel de éxito */
+/* Glass muy sutil para el panel de éxito (no compite con el CTA). */
 .glass-panel {
   background: rgba(255, 255, 255, 0.03);
   backdrop-filter: blur(20px);
@@ -73,7 +73,7 @@ function goToProfile() {
   text-align: center;
 }
 
-/* Animación 'Pop' para el icono de confirmación */
+/* Pop del icono al entrar: cubic-bezier con rebote ligero. */
 .success-icon {
   margin-bottom: 24px;
   animation: scaleUp 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);

@@ -26,9 +26,10 @@
 <script setup>
 /**
  * @file ProfileView.vue
- * @description Dashboard principal del usuario autenticado.
- * Orquesta la visualización de la biblioteca personal mezclando datos locales (MusicStore)
- * con datos globales de tendencias (Deezer API).
+ * @description Dashboard del usuario ya logueado. Mezcla lo suyo (biblioteca
+ * local del MusicStore) con una tira de tendencias globales que pido a Deezer.
+ * El propio componente es básicamente un montaje de strips/grids; la lógica
+ * aquí sólo arma los slices que paso a cada uno.
  */
 
 import { computed, ref, onMounted } from "vue";
@@ -48,38 +49,40 @@ const authStore = useAuthStore();
 const musicStore = useMusicStore();
 const { fetchTrendingAlbums } = useDeezerApi();
 
-/** Estado para almacenar los álbumes populares de la API global. */
+/** Tendencias de Deezer. Se rellena en onMounted. */
 const trending = ref([]);
 
-/** * Obtiene el nombre de pila del usuario.
- * @returns {string}
- */
+/** Primer nombre para el saludo. Fallback a "Usuario" si no hay. */
 const userName = computed(
   () => authStore.currentUser?.name?.split(" ")[0] || "Usuario",
 );
 
-/** * Selecciona los 10 artistas añadidos más recientemente.
- * Se invierte la lista original del store para priorizar la novedad.
+/**
+ * Últimos 10 artistas añadidos a la biblioteca. Invierto el array porque el
+ * store los guarda en orden de adición y aquí quiero mostrar los más nuevos
+ * arriba.
  */
 const recentArtists = computed(() =>
   [...musicStore.artists].reverse().slice(0, 10),
 );
 
-/** * Selecciona los 6 álbumes más recientes para la vista previa del dashboard.
- */
+/** Últimos 6 álbumes añadidos, por la misma razón que los artistas. */
 const recentAlbums = computed(() =>
   [...musicStore.albums].reverse().slice(0, 6),
 );
 
-/** * Flag para determinar si el usuario necesita ver el mensaje de bienvenida inicial.
- * @returns {boolean}
+/**
+ * Biblioteca vacía → enseño el empty state con CTA para añadir. Miro las dos
+ * colecciones porque alguien podría tener sólo álbumes y ningún artista, o
+ * al revés.
  */
 const isLibraryEmpty = computed(
   () => musicStore.artists.length === 0 && musicStore.albums.length === 0,
 );
 
 /**
- * Hook de montaje: Inicializa la carga de datos externos.
+ * Al montar disparo la petición de tendencias. No pongo loading explícito:
+ * mientras llega, el strip enseña skeletons.
  */
 onMounted(async () => {
   trending.value = await fetchTrendingAlbums(10);
@@ -89,7 +92,7 @@ onMounted(async () => {
 <style scoped>
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@700;900&display=swap");
 
-/* Layout Pitch Black: Negro puro para eliminar distracciones visuales */
+/* Fondo negro puro de la zona privada. Quiero cero distracciones aquí. */
 .pitch-black-workspace {
   background: #000;
   min-height: 100vh;
@@ -98,14 +101,14 @@ onMounted(async () => {
   background: #000 !important;
 }
 
-/* Espaciado del contenedor adaptado a la presencia del Dock lateral fijo (120px) */
+/* Padding izquierdo alto (120px) para dejar sitio al dock lateral fijo. */
 .profile-container {
   padding: 48px 48px 48px 120px !important;
   max-width: 1400px;
   margin: 0 auto;
 }
 
-/* Ajustes de responsividad para el padding lateral en pantallas pequeñas */
+/* En móvil el dock se achica y puedo reducir el padding izquierdo. */
 @media (max-width: 960px) {
   .profile-container {
     padding: 32px 24px 32px 100px !important;
@@ -118,7 +121,7 @@ onMounted(async () => {
   }
 }
 
-/* --- ESTILOS DE CABECERA --- */
+/* Cabecera con eyebrow azul + título gigante. */
 .profile-header {
   margin-bottom: 48px;
 }
